@@ -3,6 +3,8 @@ import { auth } from './firebase';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
 
+import axios from 'axios';
+
 function Signup() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -13,10 +15,23 @@ function Signup() {
         try {
             const userCredential = await createUserWithEmailAndPassword(auth, email, password);
             console.log("Registered! User:", userCredential.user);
-            // You can also get the token here if needed
-            // const token = await userCredential.user.getIdToken();
-            navigate('/dashboard');
+            
+            // Sync with backend (Non-blocking)
+            try {
+                const token = await userCredential.user.getIdToken();
+                await axios.post('http://localhost:5000/api/users/sync', {}, {
+                    headers: {
+                        Authorization: `Bearer ${token}`
+                    }
+                });
+            } catch (syncError) {
+                console.error("Backend Sync Error (Non-fatal):", syncError);
+                // Continue to profile setup even if sync fails
+            }
+
+            navigate('/profile-setup');
         } catch (error) {
+            console.error("Signup Error:", error);
             alert(error.message);
         }
     };
