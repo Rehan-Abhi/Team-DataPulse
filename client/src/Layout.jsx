@@ -18,6 +18,8 @@ function Layout() {
         <nav>
             <Link to="/dashboard">Dashboard</Link>
             <Link to="/dashboard/timetable">Timetable</Link>
+            <Link to="/dashboard/attendance">Attendance</Link>
+            <Link to="/dashboard/todos">Tasks</Link>
             <Link to="/dashboard/sgpa">SGPA Calculator</Link>
             {/* Add more links here later */}
         </nav>

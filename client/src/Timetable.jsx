@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { auth } from './firebase';
 
@@ -23,19 +23,13 @@ const Timetable = () => {
         endTime: '',
         title: '',
         location: '',
-        type: 'academic'
+        type: 'academic',
+        academicType: 'lecture',
+        attendanceWeight: 1
     });
+    const [editingId, setEditingId] = useState(null);
 
-    useEffect(() => {
-        fetchData();
-    }, []);
-
-    // Sync formData day when activeDay changes (optional, but good UX if adding slot from that tab)
-    useEffect(() => {
-        setFormData(prev => ({ ...prev, day: activeDay }));
-    }, [activeDay]);
-
-    const fetchData = async () => {
+    const fetchData = useCallback(async () => {
         setLoading(true);
         try {
             const token = await auth.currentUser.getIdToken();
@@ -53,21 +47,76 @@ const Timetable = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [currentDateStr]);
+
+    useEffect(() => {
+        const unsubscribe = auth.onAuthStateChanged((user) => {
+            if (user) {
+                fetchData();
+            } else {
+                setLoading(false);
+            }
+        });
+        return () => unsubscribe();
+    }, [fetchData]);
+
+    // Sync formData day when activeDay changes (optional, but good UX if adding slot from that tab)
 
     const handleAddSlot = async (e) => {
         e.preventDefault();
+        console.log("Submitting form. EditingId:", editingId);
+        console.log("Form Data:", formData);
+        
         try {
             const token = await auth.currentUser.getIdToken();
-            await axios.post('http://localhost:5000/api/timetable', formData, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const config = { headers: { Authorization: `Bearer ${token}` } };
+            
+            if (editingId) {
+                console.log(`Sending PUT to http://localhost:5000/api/timetable/${editingId}`);
+                // Update existing
+                await axios.put(`http://localhost:5000/api/timetable/${editingId}`, formData, config);
+            } else {
+                // Create new
+                await axios.post('http://localhost:5000/api/timetable', formData, config);
+            }
+            
             setShowModal(false);
+            setEditingId(null); // Reset edit mode
             fetchData(); 
         } catch (error) {
-            console.error("Error adding slot:", error);
-            alert("Failed to add slot");
+            console.error("Error saving slot:", error);
+            alert(`Failed to save slot: ${error.message}`);
         }
+    };
+
+    const openAddModal = () => {
+        setEditingId(null);
+        setFormData({
+            day: activeDay,
+            startTime: '',
+            endTime: '',
+            title: '',
+            location: '',
+            type: 'academic',
+            academicType: 'lecture',
+            attendanceWeight: 1
+        });
+        setShowModal(true);
+    };
+
+    const handleEdit = (slot) => {
+        setEditingId(slot._id);
+        setFormData({
+            day: slot.day,
+            startTime: slot.startTime,
+            endTime: slot.endTime,
+            title: slot.title,
+            location: slot.location || '',
+            type: slot.type,
+            academicType: slot.academicType || 'lecture',
+            attendanceWeight: slot.attendanceWeight || 1
+        });
+        setShowModal(true);
     };
 
     const handleDelete = async (id) => {
@@ -144,10 +193,7 @@ const Timetable = () => {
                         {activeDay === currentDayName && <p className="text-sm text-green-600 mt-1 font-medium">Today</p>}
                     </div>
                     <button 
-                        onClick={() => {
-                            setFormData(prev => ({ ...prev, day: activeDay }));
-                            setShowModal(true);
-                        }}
+                        onClick={openAddModal}
                         className="bg-blue-600 text-white px-5 py-2.5 rounded-lg hover:bg-blue-700 shadow-md transition-all font-medium flex items-center gap-2"
                     >
                         <span>+</span> Add Event
@@ -160,7 +206,7 @@ const Timetable = () => {
                         <div className="text-center py-20 bg-white rounded-xl border border-dashed border-gray-300">
                             <p className="text-gray-500 text-lg">No classes or activities scheduled for {activeDay}.</p>
                             <button 
-                                onClick={() => setShowModal(true)}
+                                onClick={openAddModal}
                                 className="mt-4 text-blue-600 hover:text-blue-800 font-medium"
                             >
                                 Add your first slot
@@ -189,18 +235,27 @@ const Timetable = () => {
                                                     <h3 className="text-lg font-bold text-gray-900">{slot.title}</h3>
                                                     <div className="flex gap-2 items-center text-sm text-gray-500 mt-1">
                                                         <span className={`px-2 py-0.5 rounded text-xs uppercase tracking-wide font-semibold ${isAcademic ? 'bg-indigo-100 text-indigo-700' : 'bg-green-100 text-green-700'}`}>
-                                                            {isAcademic ? 'Class' : 'Personal'}
+                                                            {isAcademic ? (slot.academicType === 'lab' ? `Lab (${slot.attendanceWeight}x)` : 'Lecture') : 'Personal'}
                                                         </span>
                                                         {slot.location && <span>📍 {slot.location}</span>}
                                                     </div>
                                                 </div>
-                                                <button 
+                                                <div className="flex gap-1">
+                                                    <button 
+                                                        onClick={() => handleEdit(slot)}
+                                                        className="text-white bg-blue-600 hover:bg-blue-700 px-3 py-1 rounded text-sm font-medium transition-colors"
+                                                        title="Edit Slot"
+                                                    >
+                                                        Edit
+                                                    </button>
+                                                    <button 
                                                         onClick={() => handleDelete(slot._id)}
                                                         className="text-gray-300 hover:text-red-500 p-2"
                                                         title="Delete Slot"
                                                     >
                                                         🗑️
-                                                </button>
+                                                    </button>
+                                                </div>
                                             </div>
 
                                             {/* Attendance Actions */}
@@ -239,7 +294,9 @@ const Timetable = () => {
                 <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
                     <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden transform transition-all">
                         <div className="bg-gray-50 px-6 py-4 border-b border-gray-100 flex justify-between items-center">
-                            <h3 className="text-xl font-bold text-gray-800">Add to {formData.day}</h3>
+                            <h3 className="text-xl font-bold text-gray-800">
+                                {editingId ? 'Edit Slot' : `Add to ${formData.day}`}
+                            </h3>
                             <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600">&times;</button>
                         </div>
                         
@@ -260,7 +317,6 @@ const Timetable = () => {
                                     <label className="block text-sm font-semibold text-gray-700 mb-1">Day</label>
                                     <select 
                                         value={formData.day}
-                                        // Allow changing day in modal, but defaults to active tab
                                         onChange={e => setFormData({...formData, day: e.target.value})}
                                         className="w-full border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-blue-500"
                                     >
@@ -268,6 +324,35 @@ const Timetable = () => {
                                     </select>
                                 </div>
                             </div>
+
+                            {/* Lab / Lecture Options */}
+                            {formData.type === 'academic' && (
+                                <div className="grid grid-cols-2 gap-4 bg-gray-50 p-3 rounded-lg border border-gray-100">
+                                    <div>
+                                        <label className="block text-sm font-semibold text-gray-700 mb-1">Class Type</label>
+                                        <select 
+                                            value={formData.academicType}
+                                            onChange={e => setFormData({...formData, academicType: e.target.value})}
+                                            className="w-full border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                        >
+                                            <option value="lecture">Lecture (Regular)</option>
+                                            <option value="lab">Lab (Practical)</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-semibold text-gray-700 mb-1">Attendance Count</label>
+                                        <input 
+                                            type="number" 
+                                            min="1"
+                                            max="10"
+                                            value={formData.attendanceWeight}
+                                            onChange={e => setFormData({...formData, attendanceWeight: parseInt(e.target.value) || 1})}
+                                            className="w-full border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                        />
+                                        <p className="text-[10px] text-gray-400 mt-1">Weight (e.g. Lab = 3 periods)</p>
+                                    </div>
+                                </div>
+                            )}
 
                             <div>
                                 <label className="block text-sm font-semibold text-gray-700 mb-1">Title</label>

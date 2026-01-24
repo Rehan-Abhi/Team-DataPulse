@@ -5,6 +5,9 @@ import Layout from './Layout';
 
 import DashboardHome from './DashboardHome';
 import Timetable from './Timetable';
+import AttendanceTracker from './AttendanceTracker';
+import TodoBoard from './TodoBoard';
+import SGPACalculator from './SGPACalculator';
 
 function App() {
   return (
@@ -15,7 +18,9 @@ function App() {
         <Route path="/dashboard" element={<Layout />}>
           <Route index element={<DashboardHome />} />
           <Route path="timetable" element={<Timetable />} />
-          <Route path="sgpa" element={<h2>SGPA Calculator (Coming Soon)</h2>} />
+          <Route path="attendance" element={<AttendanceTracker />} />
+          <Route path="todos" element={<TodoBoard />} />
+          <Route path="sgpa" element={<SGPACalculator />} />
         </Route>
         <Route path="/" element={<Navigate to="/login" replace />} />
       </Routes>

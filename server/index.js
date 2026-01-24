@@ -7,6 +7,8 @@ const mongoose = require('mongoose');
 const User = require('./models/User');
 const Timetable = require('./models/Timetable');
 const Attendance = require('./models/Attendance');
+const Todo = require('./models/Todo');
+const Semester = require('./models/Semester');
 
 const admin = require('firebase-admin');
 const serviceAccount = require('./serviceAccountKey.json');
@@ -147,6 +149,36 @@ app.post('/api/timetable', verifyToken, async (req, res) => {
     }
 });
 
+// Update Timetable Slot
+app.put('/api/timetable/:id', verifyToken, async (req, res) => {
+    try {
+        console.log(`Attempting update for slot ${req.params.id}`);
+        const user = await User.findOne({ firebaseUid: req.user.uid });
+        if (!user) {
+            console.log("User not found");
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        // Ensure slot belongs to user before updating
+        const slot = await Timetable.findOne({ _id: req.params.id, userId: user._id });
+        if (!slot) {
+            console.log(`Slot not found or ownership mismatch. SlotId: ${req.params.id}, UserId: ${user._id}`);
+            return res.status(404).json({ message: "Slot not found" });
+        }
+
+        console.log("Updating with body:", req.body);
+        const updatedSlot = await Timetable.findByIdAndUpdate(
+            req.params.id,
+            req.body,
+            { new: true }
+        );
+        res.status(200).json(updatedSlot);
+    } catch (error) {
+        console.error('Error updating slot:', error);
+        res.status(500).send('Server Error');
+    }
+});
+
 // Delete Timetable Slot
 app.delete('/api/timetable/:id', verifyToken, async (req, res) => {
     try {
@@ -207,6 +239,203 @@ app.get('/api/attendance', verifyToken, async (req, res) => {
 app.get('/protected-data', verifyToken, (req, res) => {
     res.send(`Hello ${req.user.email}, this data is secret!`);
 });
+// --- TODO ROUTES ---
+
+// Sync Daily Personal Tasks
+app.post('/api/todos/sync', verifyToken, async (req, res) => {
+    try {
+        const user = await User.findOne({ firebaseUid: req.user.uid });
+        if (!user) return res.status(404).json({ message: "User not found" });
+
+        // Get Today's Day Name (e.g., "Monday") and Date String
+        // Note: Using client's timezone would be better, but for MVP we'll rely on server/simple logic
+        // Ideally, pass 'date' and 'dayName' from client's local time in body
+        const { date, dayName } = req.body; 
+        
+        if (!date || !dayName) {
+            return res.status(400).json({ message: "Date and Day Name required" });
+        }
+
+        console.log(`Syncing Todos for User ${user.email} on ${dayName} (${date})`);
+
+        // 1. Find relevant Timetable slots (Personal only)
+        const personalSlots = await Timetable.find({ 
+            userId: user._id, 
+            day: dayName,
+            type: 'personal' // Only sync personal stuff. Academic is handled by Attendance.
+        });
+
+        console.log(`Found ${personalSlots.length} personal slots for ${dayName}`);
+
+        const createdTasks = [];
+
+        // 2. For each slot, ensure a Todo exists for THIS date
+        for (const slot of personalSlots) {
+            console.log(`Checking slot: ${slot.title}`);
+            const existingTodo = await Todo.findOne({
+                userId: user._id,
+                originTimetableId: slot._id,
+                date: date
+            });
+
+            if (!existingTodo) {
+                console.log(`Creating new Todo for ${slot.title}`);
+                const newTodo = new Todo({
+                    userId: user._id,
+                    title: slot.title,
+                    description: `Auto-generated from Timetable (${slot.startTime} - ${slot.endTime})`,
+                    status: 'todo',
+                    priority: 'medium',
+                    date: date,
+                    originTimetableId: slot._id
+                });
+                await newTodo.save();
+                createdTasks.push(newTodo);
+            } else {
+                console.log(`Todo already exists for ${slot.title}`);
+            }
+        }
+
+        // 3. Cleanup Orphans: Delete Todos for today that came from a slot that no longer exists
+        // (e.g. User deleted the slot from Timetable but the Todo remained)
+        const validSlotIds = personalSlots.map(s => s._id.toString());
+        
+        const todaysAutoTodos = await Todo.find({
+            userId: user._id,
+            date: date,
+            originTimetableId: { $ne: null } // Only check auto-generated ones
+        });
+
+        let deletedCount = 0;
+        for (const todo of todaysAutoTodos) {
+            if (!validSlotIds.includes(todo.originTimetableId.toString())) {
+                console.log(`Deleting orphan task: ${todo.title}`);
+                await Todo.findByIdAndDelete(todo._id);
+                deletedCount++;
+            }
+        }
+
+        console.log(`Sync complete. Created ${createdTasks.length}, Deleted ${deletedCount} orphans.`);
+        res.status(200).json({ 
+            message: "Sync complete", 
+            created: createdTasks.length,
+            deleted: deletedCount 
+        });
+    } catch (error) {
+        console.error('Error syncing todos:', error);
+        res.status(500).send('Server Error');
+    }
+});
+
+// Get Todos (Filter by Date usually, or all)
+app.get('/api/todos', verifyToken, async (req, res) => {
+    try {
+        const user = await User.findOne({ firebaseUid: req.user.uid });
+        const { date } = req.query;
+        const filter = { userId: user._id };
+        if (date) filter.date = date;
+
+        const todos = await Todo.find(filter).sort({ createdAt: -1 });
+        console.log("Fetched Todos:", JSON.stringify(todos, null, 2));
+        res.status(200).json(todos);
+    } catch (error) {
+        console.error('Error fetching todos:', error);
+        res.status(500).send('Server Error');
+    }
+});
+
+// Create Manual Todo
+app.post('/api/todos', verifyToken, async (req, res) => {
+    const { title, date, priority } = req.body;
+    try {
+        const user = await User.findOne({ firebaseUid: req.user.uid });
+        const newTodo = new Todo({
+            userId: user._id,
+            title,
+            date, // Client should send today's date
+            priority: priority || 'medium',
+            status: 'todo'
+        });
+        await newTodo.save();
+        res.status(201).json(newTodo);
+    } catch (error) {
+        console.error('Error creating todo:', error);
+        res.status(500).send('Server Error');
+    }
+});
+
+// Update Todo (Status Move)
+app.put('/api/todos/:id', verifyToken, async (req, res) => {
+    const { status } = req.body;
+    try {
+        const updated = await Todo.findByIdAndUpdate(
+            req.params.id, 
+            { status },
+            { new: true }
+        );
+        res.status(200).json(updated);
+    } catch (error) {
+        console.error('Error updating todo:', error);
+        res.status(500).send('Server Error');
+    }
+});
+
+// Delete Todo
+app.delete('/api/todos/:id', verifyToken, async (req, res) => {
+    try {
+        await Todo.findByIdAndDelete(req.params.id);
+        res.status(200).json({ message: "Deleted" });
+    } catch (error) {
+        console.error('Error deleting todo:', error);
+        res.status(500).send('Server Error');
+    }
+});
+
+// --- SGPA ROUTES ---
+
+// Save a Semester
+app.post('/api/semesters', verifyToken, async (req, res) => {
+    try {
+        const user = await User.findOne({ firebaseUid: req.user.uid });
+        const { semesterName, courses, sgpa } = req.body;
+
+        const newSem = new Semester({
+            userId: user._id,
+            semesterName,
+            courses,
+            sgpa
+        });
+        await newSem.save();
+        res.status(201).json(newSem);
+    } catch (error) {
+        console.error('Error saving semester:', error);
+        res.status(500).send('Server Error');
+    }
+});
+
+// Get Semester History (for CGPA)
+app.get('/api/semesters', verifyToken, async (req, res) => {
+    try {
+        const user = await User.findOne({ firebaseUid: req.user.uid });
+        const semesters = await Semester.find({ userId: user._id }).sort({ createdAt: -1 });
+        res.status(200).json(semesters);
+    } catch (error) {
+        console.error('Error fetching semesters:', error);
+        res.status(500).send('Server Error');
+    }
+});
+
+// Delete Semester
+app.delete('/api/semesters/:id', verifyToken, async (req, res) => {
+    try {
+        await Semester.findByIdAndDelete(req.params.id);
+        res.status(200).json({ message: "Deleted" });
+    } catch (error) {
+        console.error('Error deleting semester:', error);
+        res.status(500).send('Server Error');
+    }
+});
+
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });

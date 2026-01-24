@@ -29,7 +29,16 @@ const timetableSchema = new mongoose.Schema({
   type: {
     type: String,
     enum: ['academic', 'personal'],
-    default: 'academic',
+    required: true
+  },
+  academicType: {
+    type: String,
+    enum: ['lecture', 'lab'],
+    default: 'lecture'
+  },
+  attendanceWeight: {
+    type: Number,
+    default: 1
   },
   // Optional: distinct color code passed from frontend, or determined by type
 }, { timestamps: true });
