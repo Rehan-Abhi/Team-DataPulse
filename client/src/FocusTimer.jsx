@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import axios from 'axios';
+import api from './services/api';
 import { auth } from './firebase';
 
 const FocusTimer = () => {
@@ -26,10 +26,7 @@ const FocusTimer = () => {
     const fetchStats = async () => {
         try {
             if (auth.currentUser) {
-                const token = await auth.currentUser.getIdToken();
-                const res = await axios.get('http://localhost:5000/api/focus/today', {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
+                const res = await api.get('/focus/today');
                 setTodayTotal(res.data.totalMinutes);
             }
         } catch (error) {
@@ -92,16 +89,11 @@ const FocusTimer = () => {
 
             // Fetch Data
             if (auth.currentUser) {
-                const token = await auth.currentUser.getIdToken();
                 try {
-                    const resTasks = await axios.get('http://localhost:5000/api/todos?status=todo', {
-                        headers: { Authorization: `Bearer ${token}` }
-                    });
+                    const resTasks = await api.get('/todos?status=todo');
                     setTasks(resTasks.data);
                     
-                    const resStats = await axios.get('http://localhost:5000/api/focus/today', {
-                        headers: { Authorization: `Bearer ${token}` }
-                    });
+                    const resStats = await api.get('/focus/today');
                     setTodayTotal(resStats.data.totalMinutes);
                 } catch (error) { 
                     console.error('Error initializing data:', error);
@@ -143,7 +135,6 @@ const FocusTimer = () => {
                 }
 
                 if (durationToSave > 0) {
-                    const token = await auth.currentUser.getIdToken();
                     const sessionData = {
                         taskId: selectedTaskId || null,
                         duration: durationToSave, 
@@ -151,10 +142,7 @@ const FocusTimer = () => {
                         startTime: startTimeRef.current || new Date(),
                         endTime: new Date()
                     };
-                    
-                    await axios.post('http://localhost:5000/api/focus/session', sessionData, {
-                        headers: { Authorization: `Bearer ${token}` }
-                    });
+                    await api.post('/focus/session', sessionData);
                     
                     // Refresh stats
                     fetchStats();

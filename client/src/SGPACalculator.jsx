@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import axios from 'axios';
+import api from './services/api';
 import { auth } from './firebase';
 
 const SGPACalculator = () => {
@@ -23,10 +23,7 @@ const SGPACalculator = () => {
 
     const fetchHistory = useCallback(async () => {
         try {
-            const token = await auth.currentUser.getIdToken();
-            const res = await axios.get('http://localhost:5000/api/semesters', {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const res = await api.get('/semesters');
             setSemesters(res.data);
         } catch (error) {
             console.error("Error fetching history:", error);
@@ -100,10 +97,7 @@ const SGPACalculator = () => {
     const importSubjects = async () => {
         if (!window.confirm("This will replace current rows with your Timetable subjects. Continue?")) return;
         try {
-            const token = await auth.currentUser.getIdToken();
-            const res = await axios.get('http://localhost:5000/api/timetable', {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const res = await api.get('/timetable');
             
             // Extract unique academic titles
             const uniqueSubjects = [...new Set(
@@ -142,13 +136,10 @@ const SGPACalculator = () => {
         }));
 
         try {
-            const token = await auth.currentUser.getIdToken();
-            await axios.post('http://localhost:5000/api/semesters', {
+            await api.post('/semesters', {
                 semesterName: currentSemName,
                 courses: coursesPayload,
                 sgpa: calculateSGPA(courses)
-            }, {
-                headers: { Authorization: `Bearer ${token}` }
             });
             
             // Reset
@@ -164,10 +155,7 @@ const SGPACalculator = () => {
     const deleteSemester = async (id) => {
         if(!window.confirm("Delete this semester record?")) return;
         try {
-            const token = await auth.currentUser.getIdToken();
-            await axios.delete(`http://localhost:5000/api/semesters/${id}`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            await api.delete(`/semesters/${id}`);
             fetchHistory();
         } catch (error) {
             console.error(error);

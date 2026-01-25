@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { auth } from '../firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import axios from 'axios';
+import api from '../services/api'; // Import api service
 import AuthContext from './AuthUsage'; // Import the context
 
 export function AuthProvider({ children }) {
@@ -16,10 +16,8 @@ export function AuthProvider({ children }) {
             
             if (user) {
                 try {
-                    const token = await user.getIdToken();
-                    const response = await axios.get('http://localhost:5000/api/users/profile', {
-                        headers: { Authorization: `Bearer ${token}` }
-                    });
+                    // api.js interceptor handles the token automatically
+                    const response = await api.get('/users/profile');
                     
                     if (response.data) {
                         setUserProfile(response.data);
@@ -54,11 +52,8 @@ export function AuthProvider({ children }) {
         loading,
         refreshProfile: async () => {
             if (currentUser) {
-                const token = await currentUser.getIdToken();
                 try {
-                     const response = await axios.get('http://localhost:5000/api/users/profile', {
-                        headers: { Authorization: `Bearer ${token}` }
-                    });
+                    const response = await api.get('/users/profile');
                     setUserProfile(response.data);
                     if (response.data.university && response.data.branch && response.data.semester) {
                         setIsProfileComplete(true);

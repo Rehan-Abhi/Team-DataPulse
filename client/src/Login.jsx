@@ -2,20 +2,21 @@ import { useState } from 'react';
 import { auth, googleProvider } from './firebase';
 import { signInWithEmailAndPassword, signInWithPopup } from 'firebase/auth';
 import { useAuth } from './contexts/AuthUsage';
-import axios from 'axios';
+import api from './services/api';
 
 function Login() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const { refreshProfile } = useAuth();
 
-    const syncUser = async (token) => {
+    const syncUser = async () => {
         try {
-            const res = await axios.post('http://localhost:5000/api/users/sync', {}, {
-                headers: {
-                    Authorization: `Bearer ${token}`
-                }
-            });
+            // Token is auto-handled by api.js interceptor if auth.currentUser is set.
+            // However, after login, there might be a split second delay before auth.currentUser is propagated?
+            // Actually, firebase SDK updates it synchronously on sign-in success.
+            // But to be safe/explicit for the very first sync, we can rely on interceptor OR pass manually.
+            // Given api.js implementation, let's try relying on the interceptor.
+            const res = await api.post('/users/sync');
             return res.data;
         } catch (error) {
             console.error("Sync Error:", error);
@@ -33,7 +34,7 @@ function Login() {
             console.log("Logged In! Token:", token);
             
             // Sync user to ensure MongoDB record exists
-            await syncUser(token);
+            await syncUser();
             
             // Refresh context to update 'isProfileComplete' state
             await refreshProfile();
@@ -51,7 +52,7 @@ function Login() {
             console.log("Google User Token:", token);
             
             // Sync user
-            await syncUser(token);
+            await syncUser();
             
             // Refresh context
             await refreshProfile();

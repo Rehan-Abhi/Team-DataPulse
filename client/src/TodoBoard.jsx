@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import axios from 'axios';
+import api from './services/api';
 import { auth } from './firebase';
 
 const TodoBoard = () => {
@@ -15,9 +15,7 @@ const TodoBoard = () => {
 
     const fetchTodos = useCallback(async () => {
         try {
-            const token = await auth.currentUser.getIdToken();
-            const config = { headers: { Authorization: `Bearer ${token}` } };
-            const res = await axios.get(`http://localhost:5000/api/todos?date=${dateStr}`, config);
+            const res = await api.get(`/todos?date=${dateStr}`);
             setTodos(res.data);
         } catch (error) {
             console.error("Error fetching todos:", error);
@@ -29,14 +27,11 @@ const TodoBoard = () => {
     const syncAndFetch = useCallback(async () => {
         setLoading(true);
         try {
-            const token = await auth.currentUser.getIdToken();
-            const config = { headers: { Authorization: `Bearer ${token}` } };
-            
             // 1. Sync Timetable items for today
-            await axios.post('http://localhost:5000/api/todos/sync', {
+            await api.post('/todos/sync', {
                 date: dateStr,
                 dayName: dayName
-            }, config);
+            });
 
             // 2. Fetch updated list
             await fetchTodos();
@@ -62,13 +57,10 @@ const TodoBoard = () => {
         e.preventDefault();
         if (!newTask.trim()) return;
         try {
-            const token = await auth.currentUser.getIdToken();
-            await axios.post('http://localhost:5000/api/todos', {
+            await api.post('/todos', {
                 title: newTask,
                 date: dateStr,
                 priority: 'medium'
-            }, {
-                headers: { Authorization: `Bearer ${token}` }
             });
             setNewTask("");
             fetchTodos();
@@ -82,10 +74,7 @@ const TodoBoard = () => {
         setTodos(prev => prev.map(t => t._id === id ? { ...t, status: newStatus } : t));
 
         try {
-            const token = await auth.currentUser.getIdToken();
-            await axios.put(`http://localhost:5000/api/todos/${id}`, { status: newStatus }, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            await api.put(`/todos/${id}`, { status: newStatus });
         } catch (error) {
             console.error("Error updating status:", error);
             fetchTodos(); // Revert on error
@@ -95,10 +84,7 @@ const TodoBoard = () => {
     const handleDelete = async (id) => {
         if (!window.confirm("Delete task?")) return;
         try {
-            const token = await auth.currentUser.getIdToken();
-            await axios.delete(`http://localhost:5000/api/todos/${id}`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            await api.delete(`/todos/${id}`);
             fetchTodos();
         } catch (error) {
             console.error("Error deleting task:", error);

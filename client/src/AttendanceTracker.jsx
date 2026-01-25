@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import axios from 'axios';
 import { auth } from './firebase';
+import api from './services/api';
 
 const AttendanceTracker = () => {
     const [stats, setStats] = useState([]);
@@ -17,13 +17,10 @@ const AttendanceTracker = () => {
     const fetchData = useCallback(async () => {
         setLoading(true);
         try {
-            const token = await auth.currentUser.getIdToken();
-            const config = { headers: { Authorization: `Bearer ${token}` } };
-            
             // Fetch ALL attendance history (to calc stats) AND full timetable
             const [historyRes, timetableRes] = await Promise.all([
-                axios.get('http://localhost:5000/api/attendance', config),
-                axios.get('http://localhost:5000/api/timetable', config)
+                api.get('/attendance'),
+                api.get('/timetable')
             ]);
 
             setHistory(historyRes.data);
@@ -91,13 +88,10 @@ const AttendanceTracker = () => {
 
     const markAttendance = async (timetableId, status) => {
         try {
-            const token = await auth.currentUser.getIdToken();
-            await axios.post('http://localhost:5000/api/attendance', {
+            await api.post('/attendance', {
                 timetableId,
                 date: selectedDate,
                 status
-            }, {
-                headers: { Authorization: `Bearer ${token}` }
             });
             // Refresh data
             fetchData();

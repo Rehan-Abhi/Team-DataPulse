@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { auth } from './firebase';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { useAuth } from './contexts/AuthUsage';
-import axios from 'axios';
+import api from './services/api';
 
 function Signup() {
     const [email, setEmail] = useState('');
@@ -20,12 +20,7 @@ function Signup() {
             // Even if sync fails, AuthContext will eventualy catch up or we retry later
             // But best to wait for at least an attempt
             try {
-                const token = await userCredential.user.getIdToken();
-                await axios.post('http://localhost:5000/api/users/sync', {}, {
-                    headers: {
-                        Authorization: `Bearer ${token}`
-                    }
-                });
+                await api.post('/users/sync');
             } catch (syncError) {
                 console.error("Backend Sync Error (Non-fatal):", syncError);
                 // Continue to profile setup even if sync fails

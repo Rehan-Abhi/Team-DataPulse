@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from './services/api';
 import { Link } from 'react-router-dom';
 import { auth } from './firebase';
 
@@ -11,10 +11,8 @@ function DashboardHome() {
         const unsubscribe = auth.onAuthStateChanged(async (currentUser) => {
             if (currentUser) {
                 try {
-                    const token = await currentUser.getIdToken();
-                    const res = await axios.get('http://localhost:5000/api/users/profile', {
-                        headers: { Authorization: `Bearer ${token}` }
-                    });
+                    // api.js handles token automatically
+                    const res = await api.get('/users/profile');
                     setUser(res.data);
                 } catch (error) {
                     console.error("Error fetching profile:", error);

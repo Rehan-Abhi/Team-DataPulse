@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { auth } from './firebase';
-import axios from 'axios';
+import api from './services/api';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from './contexts/AuthUsage';
 
@@ -38,13 +38,10 @@ function ProfileSetup() {
         e.preventDefault();
         setLoading(true);
         try {
-            const token = await auth.currentUser.getIdToken();
-            await axios.put('http://localhost:5000/api/users/profile', {
+            await api.put('/users/profile', {
                 university,
                 branch,
                 semester: parseInt(semester)
-            }, {
-                headers: { Authorization: `Bearer ${token}` }
             });
             
             // Update context so it knows we are now complete

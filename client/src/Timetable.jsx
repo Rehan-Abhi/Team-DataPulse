@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import axios from 'axios';
 import { auth } from './firebase';
+import api from './services/api';
 
 const Timetable = () => {
     const [slots, setSlots] = useState([]);
@@ -32,12 +32,11 @@ const Timetable = () => {
     const fetchData = useCallback(async () => {
         setLoading(true);
         try {
-            const token = await auth.currentUser.getIdToken();
-            const config = { headers: { Authorization: `Bearer ${token}` } };
+            // api.js handles token
             
             const [slotsRes, attendanceRes] = await Promise.all([
-                axios.get('http://localhost:5000/api/timetable', config),
-                axios.get(`http://localhost:5000/api/attendance?date=${currentDateStr}`, config)
+                api.get('/timetable'),
+                api.get(`/attendance?date=${currentDateStr}`)
             ]);
 
             setSlots(slotsRes.data);
@@ -68,16 +67,12 @@ const Timetable = () => {
         console.log("Form Data:", formData);
         
         try {
-            const token = await auth.currentUser.getIdToken();
-            const config = { headers: { Authorization: `Bearer ${token}` } };
-            
             if (editingId) {
-                console.log(`Sending PUT to http://localhost:5000/api/timetable/${editingId}`);
                 // Update existing
-                await axios.put(`http://localhost:5000/api/timetable/${editingId}`, formData, config);
+                await api.put(`/timetable/${editingId}`, formData);
             } else {
                 // Create new
-                await axios.post('http://localhost:5000/api/timetable', formData, config);
+                await api.post('/timetable', formData);
             }
             
             setShowModal(false);
@@ -122,10 +117,7 @@ const Timetable = () => {
     const handleDelete = async (id) => {
         if (!window.confirm("Delete this slot?")) return;
         try {
-            const token = await auth.currentUser.getIdToken();
-            await axios.delete(`http://localhost:5000/api/timetable/${id}`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            await api.delete(`/timetable/${id}`);
             fetchData();
         } catch (error) {
             console.error("Error deleting slot:", error);
@@ -134,13 +126,10 @@ const Timetable = () => {
 
     const markAttendance = async (timetableId, status) => {
         try {
-            const token = await auth.currentUser.getIdToken();
-            await axios.post('http://localhost:5000/api/attendance', {
+            await api.post('/attendance', {
                 timetableId,
                 date: currentDateStr,
                 status
-            }, {
-                headers: { Authorization: `Bearer ${token}` }
             });
             fetchData(); // Refresh to show new status
         } catch (error) {
