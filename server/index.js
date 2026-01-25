@@ -9,6 +9,7 @@ const Timetable = require('./models/Timetable');
 const Attendance = require('./models/Attendance');
 const Todo = require('./models/Todo');
 const Semester = require('./models/Semester');
+const FocusSession = require('./models/FocusSession');
 
 const admin = require('firebase-admin');
 const serviceAccount = require('./serviceAccountKey.json');
@@ -409,6 +410,53 @@ app.post('/api/semesters', verifyToken, async (req, res) => {
         res.status(201).json(newSem);
     } catch (error) {
         console.error('Error saving semester:', error);
+        res.status(500).send('Server Error');
+    }
+});
+
+// --- FOCUS ROUTES ---
+app.post('/api/focus/session', verifyToken, async (req, res) => {
+    try {
+        const user = await User.findOne({ firebaseUid: req.user.uid });
+        const { taskId, duration, type, startTime, endTime } = req.body;
+
+        const newSession = new FocusSession({
+            userId: user._id,
+            taskId: taskId || null,
+            duration,
+            type,
+            startTime,
+            endTime
+        });
+        await newSession.save();
+        res.status(201).json(newSession);
+    } catch (error) {
+        console.error('Error saving focus session:', error);
+        res.status(500).send('Server Error');
+    }
+});
+
+// Get Today's Focus Stats
+app.get('/api/focus/today', verifyToken, async (req, res) => {
+    try {
+        const user = await User.findOne({ firebaseUid: req.user.uid });
+        const startOfDay = new Date();
+        startOfDay.setHours(0, 0, 0, 0);
+        
+        const sessions = await FocusSession.find({
+            userId: user._id,
+            type: 'focus',
+            startTime: { $gte: startOfDay }
+        });
+        
+        console.log(`[Stats] User: ${user.email}, StartOfDay: ${startOfDay}, Sessions Found: ${sessions.length}`);
+        
+        const totalMinutes = sessions.reduce((acc, curr) => acc + curr.duration, 0);
+        console.log(`[Stats] Total Minutes: ${totalMinutes}`);
+
+        res.status(200).json({ totalMinutes });
+    } catch (error) {
+        console.error('Error fetching focus stats:', error);
         res.status(500).send('Server Error');
     }
 });

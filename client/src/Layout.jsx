@@ -21,7 +21,7 @@ function Layout() {
             <Link to="/dashboard/attendance">Attendance</Link>
             <Link to="/dashboard/todos">Tasks</Link>
             <Link to="/dashboard/sgpa">SGPA Calculator</Link>
-            {/* Add more links here later */}
+            <Link to="/dashboard/focus">Focus</Link>
         </nav>
         <button onClick={handleLogout} className="logout-btn">Logout</button>
       </aside>
