@@ -1,14 +1,14 @@
 import { useState } from 'react';
 import { auth } from './firebase';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { useNavigate } from 'react-router-dom';
-
+import { useAuth } from './contexts/AuthUsage';
 import axios from 'axios';
 
 function Signup() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-    const navigate = useNavigate();
+    const { refreshProfile } = useAuth();
+    // No manual navigation; PublicRoute wrapper handles it once state updates
 
     const handleSignup = async (e) => {
         e.preventDefault();
@@ -16,7 +16,9 @@ function Signup() {
             const userCredential = await createUserWithEmailAndPassword(auth, email, password);
             console.log("Registered! User:", userCredential.user);
             
-            // Sync with backend (Non-blocking)
+            // Sync with backend (Non-blocking but we should wait before refresh)
+            // Even if sync fails, AuthContext will eventualy catch up or we retry later
+            // But best to wait for at least an attempt
             try {
                 const token = await userCredential.user.getIdToken();
                 await axios.post('http://localhost:5000/api/users/sync', {}, {
@@ -29,7 +31,9 @@ function Signup() {
                 // Continue to profile setup even if sync fails
             }
 
-            navigate('/profile-setup');
+            // Trigger context refresh so it knows we have a user (and maybe a profile from sync)
+            await refreshProfile();
+
         } catch (error) {
             console.error("Signup Error:", error);
             alert(error.message);

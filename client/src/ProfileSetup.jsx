@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { auth } from './firebase';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from './contexts/AuthUsage';
 
 function ProfileSetup() {
     const [university, setUniversity] = useState('');
@@ -9,6 +10,7 @@ function ProfileSetup() {
     const [semester, setSemester] = useState('');
     const [loading, setLoading] = useState(false);
     const navigate = useNavigate();
+    const { refreshProfile } = useAuth(); // Get refresh function
 
     useEffect(() => {
         const currentUser = auth.currentUser;
@@ -30,7 +32,7 @@ function ProfileSetup() {
             else if (email.includes('mech')) setBranch('Mechanical');
             else if (email.includes('civil')) setBranch('Civil');
         }
-    }, []);
+    }, [refreshProfile]); // Add dependency if needed, though usually stable
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -44,6 +46,10 @@ function ProfileSetup() {
             }, {
                 headers: { Authorization: `Bearer ${token}` }
             });
+            
+            // Update context so it knows we are now complete
+            await refreshProfile();
+
             // Redirect to dashboard on success
             navigate('/dashboard');
         } catch (error) {

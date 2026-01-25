@@ -1,14 +1,13 @@
 import { useState } from 'react';
 import { auth, googleProvider } from './firebase';
 import { signInWithEmailAndPassword, signInWithPopup } from 'firebase/auth';
-import { useNavigate } from 'react-router-dom';
-
+import { useAuth } from './contexts/AuthUsage';
 import axios from 'axios';
 
 function Login() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-    const navigate = useNavigate();
+    const { refreshProfile } = useAuth();
 
     const syncUser = async (token) => {
         try {
@@ -32,13 +31,13 @@ function Login() {
              // Get the token to send to backend
             const token = await userCredential.user.getIdToken();
             console.log("Logged In! Token:", token);
-            const userData = await syncUser(token);
             
-            if (userData && !userData.isProfileComplete) {
-                navigate('/profile-setup');
-            } else {
-                navigate('/dashboard');
-            }
+            // Sync user to ensure MongoDB record exists
+            await syncUser(token);
+            
+            // Refresh context to update 'isProfileComplete' state
+            await refreshProfile();
+            // Navigation handled by PublicRoute wrapper in App.jsx
             
         } catch (error) {
             alert(error.message);
@@ -50,13 +49,13 @@ function Login() {
             const result = await signInWithPopup(auth, googleProvider);
             const token = await result.user.getIdToken();
             console.log("Google User Token:", token);
-            const userData = await syncUser(token);
             
-            if (userData && !userData.isProfileComplete) {
-                navigate('/profile-setup');
-            } else {
-                navigate('/dashboard');
-            }
+            // Sync user
+            await syncUser(token);
+            
+            // Refresh context
+            await refreshProfile();
+             // Navigation handled by PublicRoute wrapper in App.jsx
 
         } catch (error) {
             console.error(error);
