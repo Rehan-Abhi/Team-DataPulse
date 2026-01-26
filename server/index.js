@@ -14,9 +14,13 @@ const libraryRoutes = require('./routes/library');
 const discussionRoutes = require('./routes/discussion');
 const lostFoundRoutes = require('./routes/lostfound'); // [NEW] LostFound
 const chatRoutes = require('./routes/chat'); // [NEW] Chat
+const budgetRoutes = require('./routes/budget'); // [NEW] Smart Budgetor
 
 const admin = require('firebase-admin');
 const serviceAccount = require('./serviceAccountKey.json');
+
+// Middleware Imports
+const verifyToken = require('./middleware/auth');
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)
@@ -34,17 +38,7 @@ mongoose.connect(process.env.MONGODB_URI, clientOptions)
   .catch(err => console.error('Could not connect to MongoDB:', err));
 
 // Middleware to protect routes
-const verifyToken = async (req, res, next) => {
-    const token = req.headers.authorization?.split(' ')[1]; // Expect "Bearer <token>"
-    if (!token) return res.status(401).send("Unauthorized");
-    try {
-        const decodedToken = await admin.auth().verifyIdToken(token);
-        req.user = decodedToken; // Add user info to request
-        next();
-    } catch (error) {
-        res.status(401).send("Invalid Token");
-    }
-};
+// Middleware to protect routes (Imported)
 
 // Basic Route
 app.get('/', (req, res) => {
@@ -493,6 +487,7 @@ app.use('/api/library', libraryRoutes);
 app.use('/api/discussion', discussionRoutes);
 app.use('/api/lostfound', lostFoundRoutes);
 app.use('/api/chat', chatRoutes);
+app.use('/api/budget', verifyToken, budgetRoutes);
 
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);

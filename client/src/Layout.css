@@ -2,16 +2,54 @@
   display: flex;
   height: 100vh;
   width: 100vw;
+  position: relative;
+}
+
+/* Toggle Button */
+.sidebar-toggle {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  z-index: 100;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  cursor: pointer;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: left 0.3s ease;
+}
+
+/* Move toggle when sidebar opens */
+.sidebar.open ~ .sidebar-toggle {
+  left: 260px; /* Width + padding margin */
 }
 
 .sidebar {
-  width: 250px;
   background-color: #f0f0f0;
-  padding: 20px;
   display: flex;
   flex-direction: column;
   border-right: 1px solid #ddd;
   color: #333;
+  transition: all 0.3s ease;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.sidebar.open {
+  width: 250px;
+  padding: 20px;
+  padding-top: 60px; /* Space for toggle if inside, or just aesthetics */
+}
+
+.sidebar.closed {
+  width: 0;
+  padding: 0;
+  border: none;
 }
 
 .sidebar h2 {

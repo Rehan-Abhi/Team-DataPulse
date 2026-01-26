@@ -13,8 +13,10 @@ import TodoBoard from './TodoBoard';
 import SGPACalculator from './SGPACalculator';
 import FocusTimer from './FocusTimer';
 import YourCollege from './YourCollege';
+import SmartBudget from './components/SmartBudget';
 
 function App() {
+  console.log("App Component Rendering");
   return (
     <AuthProvider>
       <BrowserRouter>
@@ -40,9 +42,10 @@ function App() {
             <Route path="timetable" element={<Timetable />} />
             <Route path="attendance" element={<AttendanceTracker />} />
             <Route path="todos" element={<TodoBoard />} />
-            <Route path="sgpa" element={<SGPACalculator />} />
             <Route path="focus" element={<FocusTimer />} />
-            <Route path="college" element={<YourCollege />} />
+            {/* <Route path="college" element={<YourCollege />} />  Temporarily disabled for debugging */}
+            <Route path="budget" element={<SmartBudget />} />
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Route>
           
           <Route path="/" element={<Navigate to="/login" replace />} />
