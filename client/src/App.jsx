@@ -12,6 +12,7 @@ import AttendanceTracker from './AttendanceTracker';
 import TodoBoard from './TodoBoard';
 import SGPACalculator from './SGPACalculator';
 import FocusTimer from './FocusTimer';
+import YourCollege from './YourCollege';
 
 function App() {
   return (
@@ -41,6 +42,7 @@ function App() {
             <Route path="todos" element={<TodoBoard />} />
             <Route path="sgpa" element={<SGPACalculator />} />
             <Route path="focus" element={<FocusTimer />} />
+            <Route path="college" element={<YourCollege />} />
           </Route>
           
           <Route path="/" element={<Navigate to="/login" replace />} />

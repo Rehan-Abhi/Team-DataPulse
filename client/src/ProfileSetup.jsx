@@ -51,7 +51,8 @@ function ProfileSetup() {
             navigate('/dashboard');
         } catch (error) {
             console.error("Profile Update Error:", error);
-            alert("Failed to update profile.");
+            console.error("Profile Update Error:", error);
+            alert(`Failed to update profile. Server says: ${error.response?.data?.message || error.message}`);
         } finally {
             setLoading(false);
         }

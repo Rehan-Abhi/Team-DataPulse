@@ -10,6 +10,10 @@ const Attendance = require('./models/Attendance');
 const Todo = require('./models/Todo');
 const Semester = require('./models/Semester');
 const FocusSession = require('./models/FocusSession');
+const libraryRoutes = require('./routes/library');
+const discussionRoutes = require('./routes/discussion');
+const lostFoundRoutes = require('./routes/lostfound'); // [NEW] LostFound
+const chatRoutes = require('./routes/chat'); // [NEW] Chat
 
 const admin = require('firebase-admin');
 const serviceAccount = require('./serviceAccountKey.json');
@@ -92,15 +96,15 @@ app.put('/api/users/profile', verifyToken, async (req, res) => {
                 university, 
                 branch, 
                 semester,
-                semester,
                 isProfileComplete: true,
                 // Ensure email and firebaseUid are set if creating new doc
-                email: req.user.email,
-                displayName: req.user.name || '',
+                email: req.user.email || (`no-email-${uid}`),
+                displayName: req.user.name || req.user.email || 'Student',
                 photoURL: req.user.picture || ''
             },
             { new: true, upsert: true }
         );
+        console.log("Profile Updated:", user);
         res.status(200).json(user);
     } catch (error) {
         console.error('Error updating profile:', error);
@@ -483,6 +487,12 @@ app.delete('/api/semesters/:id', verifyToken, async (req, res) => {
         res.status(500).send('Server Error');
     }
 });
+
+// --- LIBRARY ROUTES ---
+app.use('/api/library', libraryRoutes);
+app.use('/api/discussion', discussionRoutes);
+app.use('/api/lostfound', lostFoundRoutes);
+app.use('/api/chat', chatRoutes);
 
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);

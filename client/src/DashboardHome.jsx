@@ -43,9 +43,20 @@ function DashboardHome() {
                 <p><strong>Semester:</strong> {user.semester}</p>
             </div>
             
-            <div className="quick-links">
-                <h3>Quick Links</h3>
-                <p>Select a feature from the sidebar to get started.</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
+                <Link to="/dashboard/college" className="p-6 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-xl shadow-lg text-white hover:scale-105 transition-transform">
+                    <h3 className="text-2xl font-bold mb-2">🏛️ Your College Hub</h3>
+                    <p className="opacity-90">Access Library, Friends, and Roadmap for {user.university}</p>
+                </Link>
+
+                <div className="p-6 bg-white border border-gray-200 rounded-xl shadow-sm">
+                    <h3 className="text-xl font-bold text-gray-800 mb-4">Quick Actions</h3>
+                    <div className="flex gap-4 flex-wrap">
+                        <Link to="/dashboard/todos" className="text-blue-600 hover:underline">Manage Tasks</Link>
+                        <Link to="/dashboard/timetable" className="text-blue-600 hover:underline">View Schedule</Link>
+                        <Link to="/dashboard/focus" className="text-blue-600 hover:underline">Start Focus</Link>
+                    </div>
+                </div>
             </div>
         </div>
     );
