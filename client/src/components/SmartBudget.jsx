@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../services/api'; 
+import Papa from 'papaparse';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 
 // Simple colors for the pie chart
@@ -8,29 +9,53 @@ const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#AF19FF', '#FF19A3'
 export default function SmartBudget() {
     const [transactions, setTransactions] = useState([]);
     const [debts, setDebts] = useState({ iOwe: [], owedToMe: [] });
+    const [friendsList, setFriendsList] = useState([]);
     const [showAddTx, setShowAddTx] = useState(false);
     const [showAddDebt, setShowAddDebt] = useState(false);
+    const [showImport, setShowImport] = useState(false);
     
     // Forms
     const [newTx, setNewTx] = useState({ type: 'expense', amount: '', category: 'Food', description: '' });
-    const [newDebt, setNewDebt] = useState({ targetEmail: '', amount: '', description: '', type: 'lent' });
+    const [newDebt, setNewDebt] = useState({ targetEmail: '', amount: '', description: '', type: 'lent', friendId: '' });
 
     const fetchData = useCallback(async () => {
         try {
-            const [txRes, debtRes] = await Promise.all([
+            const results = await Promise.allSettled([
                 api.get('/budget/transactions'),
-                api.get('/budget/debts')
+                api.get('/budget/debts'),
+                api.get('/friends/mine')
             ]);
-            setTransactions(txRes.data);
-            setDebts(debtRes.data); // { iOwe: [], owedToMe: [] }
+
+            const [txRes, debtRes, friendsRes] = results;
+
+            if (txRes.status === 'fulfilled') {
+                setTransactions(txRes.value.data);
+            } else {
+                console.error("Tx Fetch Failed:", txRes.reason);
+            }
+
+            if (debtRes.status === 'fulfilled') {
+                setDebts(debtRes.value.data);
+            } else {
+                console.error("Debt Fetch Failed:", debtRes.reason);
+            }
+
+            if (friendsRes.status === 'fulfilled') {
+                setFriendsList(friendsRes.value.data);
+            } else {
+                 console.error("Friends Fetch Failed:", friendsRes.reason);
+            }
+            
         } catch (error) {
-            console.error("Error fetching budget data:", error);
+            console.error("Critical Error fetching budget data:", error);
         }
     }, []);
 
     useEffect(() => {
-        fetchData();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+        const load = async () => {
+            await fetchData();
+        };
+        load();
     }, [fetchData]);
 
     const handleAddTx = async (e) => {
@@ -65,6 +90,74 @@ export default function SmartBudget() {
         } catch(e) { console.error(e); }
     };
 
+    const handleFileUpload = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        Papa.parse(file, {
+            header: true,
+            skipEmptyLines: true,
+            complete: async (results) => {
+                // Heuristic mapping: look for 'Amount', 'Date', 'Description', 'Type'
+                // Assumption: User uploads a somewhat clean CSV or we default
+                const foundHeaders = results.meta.fields || [];
+                console.log("CSV Headers:", foundHeaders);
+
+                const parsedTxs = results.data.map(row => {
+                    // Try to find fields case-insensitively
+                    const keys = Object.keys(row);
+                    const getVal = (k) => {
+                        const key = keys.find(key => key.toLowerCase().includes(k.toLowerCase()));
+                        return key ? row[key] : null;
+                    };
+
+                    const amountStr = getVal('amount') || getVal('debit') || getVal('credit') || getVal('cost') || getVal('withdrawal') || '0';
+                    const amount = parseFloat(amountStr.replace(/[^0-9.-]+/g, ""));
+                    
+                    // Determine type if not explicit
+                    let type = 'expense';
+                    if (getVal('type')?.toLowerCase().includes('cr') || getVal('credit') || (getVal('deposit') && amount > 0)) type = 'income';
+                    
+                    return {
+                        date: new Date(getVal('date') || getVal('time') || Date.now()),
+                        description: getVal('description') || getVal('remark') || getVal('narrative') || getVal('particulars') || 'Imported Tx',
+                        amount: Math.abs(amount),
+                        type: type,
+                        category: 'Imported'
+                    };
+                }).filter(t => t.amount > 0);
+
+                if (parsedTxs.length === 0) {
+                    alert(`Could not parse transactions.\n\nFound Headers: ${foundHeaders.join(', ')}\n\nExpected columns like: Amount, Date, Description, Debit, Credit.`);
+                    return;
+                }
+
+                if (window.confirm(`Found ${parsedTxs.length} transactions. Import them?`)) {
+                    try {
+                        await api.post('/budget/transactions/batch', { transactions: parsedTxs });
+                        setShowImport(false);
+                        fetchData();
+                        alert("Import Successful!");
+                    } catch (err) {
+                        console.error(err);
+                        const errMsg = err.response?.data?.error || err.message;
+                        alert(`Import failed: ${errMsg}`);
+                    }
+                }
+            }
+        });
+    };
+
+    const handleFriendSelect = (e) => {
+        const friendId = e.target.value;
+        if (friendId === 'manual') {
+            setNewDebt({ ...newDebt, friendId: 'manual', targetEmail: '' });
+        } else {
+             const friend = friendsList.find(f => f._id === friendId);
+             setNewDebt({ ...newDebt, friendId: friendId, targetEmail: friend.email || '' });
+        }
+    };
+
     // Analytics
     const totalSpent = transactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
     const totalIncome = transactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
@@ -80,6 +173,27 @@ export default function SmartBudget() {
             }
             return acc;
         }, []);
+
+    const handleDeleteTx = async (id) => {
+        if (!confirm("Delete this transaction?")) return;
+        try {
+            await api.delete(`/budget/transactions/${id}`);
+            setTransactions(prev => prev.filter(t => t._id !== id));
+        } catch {
+            alert("Failed to delete");
+        }
+    };
+
+    const handleClearAll = async () => {
+        if (!confirm("⚠️ Are you sure you want to delete ALL 6000+ transactions? This cannot be undone.")) return;
+        try {
+            await api.delete('/budget/transactions/all/confirm');
+            setTransactions([]);
+            fetchData(); // Refresh stats
+        } catch {
+            alert("Failed to clear");
+        }
+    };
 
     return (
         <div className="space-y-8 animate-fade-in pb-20">
@@ -149,6 +263,13 @@ export default function SmartBudget() {
                     >
                         <span>➕</span> Add Transaction
                     </button>
+                    
+                    <button 
+                        onClick={() => setShowImport(true)}
+                        className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
+                    >
+                        <span>📄</span> Import Statement (CSV)
+                    </button>
 
                      <button 
                         onClick={() => setShowAddDebt(true)}
@@ -161,17 +282,29 @@ export default function SmartBudget() {
 
             {/* Transactions & Debts */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                    <h3 className="font-bold text-gray-800 mb-4">Recent Transactions</h3>
-                    <div className="space-y-3 max-h-96 overflow-y-auto">
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col">
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="font-bold text-gray-800">Recent Transactions ({transactions.length})</h3>
+                        {transactions.length > 0 && <button onClick={handleClearAll} className="text-xs text-red-500 hover:underline">Clear All</button>}
+                    </div>
+                    
+                    <div className="space-y-3 flex-1 overflow-y-auto max-h-96 pr-1 custom-scrollbar">
+                        {transactions.length === 0 && <p className="text-gray-400 text-center py-10">No transactions found.</p>}
                         {transactions.map(t => (
-                            <div key={t._id} className="flex justify-between items-center p-3 hover:bg-gray-50 rounded-lg border border-gray-50">
-                                <div>
-                                    <p className="font-bold text-gray-800">{t.description || t.category}</p>
-                                    <p className="text-xs text-gray-500">{new Date(t.date).toLocaleDateString()}</p>
+                            <div key={t._id} className="group flex justify-between items-center p-3 hover:bg-gray-50 rounded-lg border border-gray-50 transition-colors">
+                                <div className="flex-1 min-w-0 mr-4">
+                                    <div className="flex justify-between">
+                                        <p className="font-bold text-gray-800 truncate">{t.description || "Unknown Transaction"}</p>
+                                        <button onClick={() => handleDeleteTx(t._id)} className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity px-2">
+                                            🗑️
+                                        </button>
+                                    </div>
+                                    <div className="flex justify-between text-xs text-gray-500 mt-1">
+                                        <span>{new Date(t.date).toLocaleDateString()} • {t.category}</span>
+                                    </div>
                                 </div>
-                                <span className={`font-bold ${t.type === 'expense' ? 'text-red-500' : 'text-green-500'}`}>
-                                    {t.type === 'expense' ? '-' : '+'}₹{t.amount}
+                                <span className={`font-bold whitespace-nowrap ${t.type === 'expense' ? 'text-red-500' : 'text-green-500'}`}>
+                                    {t.type === 'expense' ? '-' : '+'}₹{t.amount.toLocaleString()}
                                 </span>
                             </div>
                         ))}
@@ -235,7 +368,24 @@ export default function SmartBudget() {
                             <button type="button" onClick={()=>setNewDebt({...newDebt, type: 'lent'})} className={`flex-1 py-1 rounded ${newDebt.type === 'lent' ? 'bg-white shadow' : ''}`}>I Lent</button>
                             <button type="button" onClick={()=>setNewDebt({...newDebt, type: 'borrowed'})} className={`flex-1 py-1 rounded ${newDebt.type === 'borrowed' ? 'bg-white shadow' : ''}`}>I Borrowed</button>
                         </div>
-                        <input className="w-full border p-2 rounded" type="email" placeholder="Friend's Email" value={newDebt.targetEmail} onChange={e=>setNewDebt({...newDebt, targetEmail: e.target.value})} required />
+                        
+                        <div>
+                             <label className="block text-xs font-bold text-gray-500 mb-1">Select Friend</label>
+                             <select 
+                                className="w-full border p-2 rounded"
+                                value={newDebt.friendId}
+                                onChange={handleFriendSelect}
+                             >
+                                <option value="">-- Choose Friend --</option>
+                                {friendsList.map(f => <option key={f._id} value={f._id}>{f.displayName}</option>)}
+                                <option value="manual">Other (Enter Email)</option>
+                             </select>
+                        </div>
+
+                        {(newDebt.friendId === 'manual' || !newDebt.friendId) && (
+                            <input className="w-full border p-2 rounded" type="email" placeholder="Friend's Email" value={newDebt.targetEmail} onChange={e=>setNewDebt({...newDebt, targetEmail: e.target.value})} required={!newDebt.friendId || newDebt.friendId === 'manual'} />
+                        )}
+                        
                         <input className="w-full border p-2 rounded" type="number" placeholder="Amount" value={newDebt.amount} onChange={e=>setNewDebt({...newDebt, amount: Number(e.target.value)})} required />
                         <input className="w-full border p-2 rounded" placeholder="Description" value={newDebt.description} onChange={e=>setNewDebt({...newDebt, description: e.target.value})} />
                         <div className="flex gap-2">
@@ -243,6 +393,23 @@ export default function SmartBudget() {
                             <button type="button" onClick={()=>setShowAddDebt(false)} className="flex-1 bg-gray-200 py-2 rounded">Cancel</button>
                         </div>
                     </form>
+                </div>
+            )}
+            
+            {showImport && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+                    <div className="bg-white p-6 rounded-xl w-full max-w-sm space-y-4 text-center">
+                        <h3 className="text-xl font-bold">Import Statement</h3>
+                        <p className="text-sm text-gray-500">Upload a CSV file from GPay, Paytm, or PhonePe history.</p>
+                        
+                        <div className="border-2 border-dashed border-gray-300 rounded-xl p-8 hover:bg-gray-50 transition-colors cursor-pointer relative">
+                            <input type="file" accept=".csv" onChange={handleFileUpload} className="absolute inset-0 opacity-0 cursor-pointer" />
+                            <span className="text-4xl block mb-2">📂</span>
+                            <span className="font-bold text-gray-600">Click to Upload CSV</span>
+                        </div>
+
+                        <button onClick={()=>setShowImport(false)} className="text-gray-400 hover:text-gray-600">Cancel</button>
+                    </div>
                 </div>
             )}
 

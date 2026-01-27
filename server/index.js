@@ -15,6 +15,7 @@ const discussionRoutes = require('./routes/discussion');
 const lostFoundRoutes = require('./routes/lostfound'); // [NEW] LostFound
 const chatRoutes = require('./routes/chat'); // [NEW] Chat
 const budgetRoutes = require('./routes/budget'); // [NEW] Smart Budgetor
+const friendsRoutes = require('./routes/friends'); // [NEW] Friends v2
 
 const admin = require('firebase-admin');
 const serviceAccount = require('./serviceAccountKey.json');
@@ -28,7 +29,8 @@ admin.initializeApp({
 
 // Middleware
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
 // MongoDB Connection
 const clientOptions = { serverApi: { version: '1', strict: true, deprecationErrors: true } };
@@ -129,7 +131,9 @@ app.get('/api/timetable', verifyToken, async (req, res) => {
     }
 });
 
-// Add Timetable Slot
+
+
+// Add Timetable Slot (Restored)
 app.post('/api/timetable', verifyToken, async (req, res) => {
     const { day, startTime, endTime, title, location, type } = req.body;
     try {
@@ -147,6 +151,7 @@ app.post('/api/timetable', verifyToken, async (req, res) => {
         res.status(500).send('Server Error');
     }
 });
+
 
 // Update Timetable Slot
 app.put('/api/timetable/:id', verifyToken, async (req, res) => {
@@ -488,6 +493,7 @@ app.use('/api/discussion', discussionRoutes);
 app.use('/api/lostfound', lostFoundRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/budget', verifyToken, budgetRoutes);
+app.use('/api/friends', friendsRoutes);
 
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);

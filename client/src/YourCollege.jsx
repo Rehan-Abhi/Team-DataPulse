@@ -40,6 +40,70 @@ function YourCollege() {
     const categories = ['Physics', 'Chemistry', 'Mathematics', 'Coding', 'Electronics', 'Mechanics', 'Humanities', 'Other'];
     const postTypes = ['Discussion', 'Announcement', 'GroupStudy', 'Question'];
 
+    // Friends State
+    const [friendsView, setFriendsView] = useState('mine'); // 'mine', 'search', 'requests'
+    
+    // Data Lists
+    const [friendsList, setFriendsList] = useState([]);
+    const [peers, setPeers] = useState([]);
+    const [requests, setRequests] = useState([]);
+
+    // Fetch Friends Logic
+    const fetchMyFriends = useCallback(async () => {
+        setLoading(true);
+        try {
+            const res = await api.get('/friends/mine');
+            setFriendsList(res.data);
+        } catch (error) {
+            console.error("Error fetching friends:", error);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    const fetchPeers = useCallback(async () => {
+        setLoading(true);
+        try {
+            const res = await api.get('/friends/search');
+            setPeers(res.data);
+        } catch (error) {
+            console.error("Error fetching peers:", error);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    const fetchRequests = useCallback(async () => {
+        try {
+            const res = await api.get('/friends/requests');
+            setRequests(res.data);
+        } catch (error) {
+            console.error("Error fetching requests:", error);
+        }
+    }, []);
+
+    const sendRequest = async (targetId) => {
+        try {
+            await api.post(`/friends/request/${targetId}`);
+            alert("Request sent!");
+            fetchPeers(); // Refresh to update button state
+        } catch (error) {
+            console.error(error);
+            alert("Failed to send request");
+        }
+    };
+
+    const respondToRequest = async (requestId, action) => {
+        try {
+            await api.post('/friends/respond', { requestId, action });
+            fetchRequests();
+            fetchMyFriends(); // Update friends list if accepted
+        } catch (error) {
+            console.error(error);
+            alert("Failed to respond");
+        }
+    };
+
     // Fetch Library
     const fetchLibrary = useCallback(async () => {
         setLoading(true);
@@ -85,7 +149,13 @@ function YourCollege() {
         if (activeTab === 'library') fetchLibrary();
         if (activeTab === 'discussion') fetchPosts();
         if (activeTab === 'lostfound') fetchLostFound();
-    }, [activeTab, fetchLibrary, fetchPosts, fetchLostFound]);
+        
+        if (activeTab === 'friends') {
+            if (friendsView === 'mine') fetchMyFriends();
+            if (friendsView === 'search') fetchPeers();
+            if (friendsView === 'requests') fetchRequests();
+        }
+    }, [activeTab, friendsView, fetchLibrary, fetchPosts, fetchLostFound, fetchMyFriends, fetchPeers, fetchRequests]);
 
     const handleReportItem = async (e) => {
         e.preventDefault();
@@ -232,8 +302,11 @@ function YourCollege() {
                 >
                     🔍 Lost & Found
                 </button>
-                <button disabled className="px-6 py-3 font-semibold text-lg text-gray-300 cursor-not-allowed">
-                    🗺️ Roadmap (Soon)
+                <button 
+                    onClick={() => setActiveTab('friends')}
+                    className={`px-6 py-3 font-semibold text-lg transition-colors border-b-2 ${activeTab === 'friends' ? 'border-green-600 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                >
+                    👥 Friends
                 </button>
             </div>
 
@@ -481,6 +554,170 @@ function YourCollege() {
                                 </div>
                             ))}
                         </div>
+                    )}
+                </div>
+
+            )}
+
+            {/* --- FRIENDS TAB --- */}
+            {activeTab === 'friends' && (
+                <div className="animate-fade-in">
+                     {/* Sub-Header / Toolbar */}
+                     <div className="flex flex-col md:flex-row justify-between items-center mb-6 bg-white p-4 rounded-xl shadow-sm border border-green-100 gap-4">
+                        <div className="flex gap-4">
+                            <button 
+                                onClick={() => setFriendsView('mine')}
+                                className={`px-4 py-2 rounded-lg font-bold transition-all ${friendsView === 'mine' ? 'bg-green-100 text-green-700' : 'text-gray-500 hover:bg-gray-50'}`}
+                            >
+                                My Friends
+                            </button>
+                            <button 
+                                onClick={() => setFriendsView('search')}
+                                className={`px-4 py-2 rounded-lg font-bold transition-all ${friendsView === 'search' ? 'bg-green-100 text-green-700' : 'text-gray-500 hover:bg-gray-50'}`}
+                            >
+                                Find Peers
+                            </button>
+                            <button 
+                                onClick={() => setFriendsView('requests')}
+                                className={`px-4 py-2 rounded-lg font-bold transition-all ${friendsView === 'requests' ? 'bg-green-100 text-green-700' : 'text-gray-500 hover:bg-gray-50'} relative`}
+                            >
+                                Requests
+                                {requests.length > 0 && (
+                                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-5 h-5 flex items-center justify-center rounded-full">
+                                        {requests.length}
+                                    </span>
+                                )}
+                            </button>
+                        </div>
+                        
+                        <button 
+                            onClick={fetchMyChats}
+                            className="bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 px-4 py-2 rounded-lg font-medium shadow-sm transition-all flex items-center gap-2"
+                        >
+                            <span>📬</span> Inbox
+                        </button>
+                    </div>
+
+                    {/* View: My Friends */}
+                    {friendsView === 'mine' && (
+                        loading ? <div className="text-center py-20 text-gray-500">Loading Friends...</div> :
+                        friendsList.length === 0 ? (
+                            <div className="text-center py-20 bg-gray-50 rounded-xl border border-dashed border-gray-300">
+                                <h3 className="text-xl font-bold text-gray-700">No friends yet</h3>
+                                <p className="text-gray-500 mt-2">Go to "Find Peers" to connect with others!</p>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                {friendsList.map(u => (
+                                    <div key={u._id} className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 hover:shadow-md transition-all flex items-center gap-4 relative overflow-hidden">
+                                        {/* Status Indicator Bar */}
+                                        <div className={`absolute left-0 top-0 bottom-0 w-2 ${u.liveStatus?.state === 'busy' ? 'bg-red-500' : u.liveStatus?.state === 'free' ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                                        
+                                        <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center text-xl overflow-hidden ml-2">
+                                            {u.photoURL ? <img src={u.photoURL} alt={u.displayName} className="w-full h-full object-cover"/> : <span>👤</span>}
+                                        </div>
+                                        
+                                        <div className="flex-1">
+                                            <h3 className="font-bold text-gray-800">{u.displayName}</h3>
+                                            <div className="flex items-center gap-2 mt-1">
+                                                <span className={`w-2.5 h-2.5 rounded-full ${u.liveStatus?.state === 'busy' ? 'bg-red-500' : u.liveStatus?.state === 'free' ? 'bg-green-500' : 'bg-gray-400'}`}></span>
+                                                <span className="text-xs font-medium text-gray-600">
+                                                    {u.liveStatus?.status || "Offline"}
+                                                </span>
+                                            </div>
+                                            {u.liveStatus?.state === 'busy' && u.liveStatus.endTime && (
+                                                <p className="text-[10px] text-gray-400 ml-5">Until {u.liveStatus.endTime}</p>
+                                            )}
+                                        </div>
+                                        
+                                        <button 
+                                            onClick={() => handleContactFinder(u.firebaseUid, "Friends Chat")}
+                                            className="bg-blue-50 text-blue-600 p-2 rounded-lg hover:bg-blue-100 transition-colors"
+                                            title="Message"
+                                        >
+                                            💬
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        )
+                    )}
+
+                    {/* View: Find Peers */}
+                    {friendsView === 'search' && (
+                        loading ? <div className="text-center py-20 text-gray-500">Searching Peers...</div> :
+                        peers.length === 0 ? (
+                            <div className="text-center py-20 bg-gray-50 rounded-xl border border-dashed border-gray-300">
+                                <h3 className="text-xl font-bold text-gray-700">No new peers found</h3>
+                                <p className="text-gray-500 mt-2">Everyone in your college is already your friend!</p>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                {peers.map(u => (
+                                    <div key={u._id} className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 hover:shadow-md transition-all flex items-center gap-4">
+                                        <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center text-xl overflow-hidden">
+                                            {u.photoURL ? <img src={u.photoURL} alt={u.displayName} className="w-full h-full object-cover"/> : <span>👤</span>}
+                                        </div>
+                                        <div className="flex-1">
+                                            <h3 className="font-bold text-gray-800">{u.displayName}</h3>
+                                            <p className="text-xs text-gray-500">{u.branch || "Student"} • {u.semester ? `Sem ${u.semester}` : ""}</p>
+                                        </div>
+                                        
+                                        {u.relation === 'sent' ? (
+                                             <span className="text-xs font-bold text-gray-400 px-3 py-1 bg-gray-100 rounded-full">Pending</span>
+                                        ) : u.relation === 'received' ? (
+                                            <span className="text-xs font-bold text-green-600 px-3 py-1 bg-green-50 rounded-full">Check Requests</span>
+                                        ) : (
+                                            <button 
+                                                onClick={() => sendRequest(u._id)}
+                                                className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 text-sm rounded-lg font-medium transition-colors"
+                                            >
+                                                Add Friend
+                                            </button>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        )
+                    )}
+
+                    {/* View: Requests */}
+                    {friendsView === 'requests' && (
+                        requests.length === 0 ? (
+                            <div className="text-center py-20 bg-gray-50 rounded-xl border border-dashed border-gray-300">
+                                <h3 className="text-xl font-bold text-gray-700">No pending requests</h3>
+                            </div>
+                        ) : (
+                            <div className="max-w-xl mx-auto space-y-4">
+                                {requests.map(req => (
+                                    <div key={req._id} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                             <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden">
+                                                {req.from.photoURL ? <img src={req.from.photoURL} alt="" className="w-full h-full object-cover"/> : <span>👤</span>}
+                                            </div>
+                                            <div>
+                                                <h3 className="font-bold text-gray-800">{req.from.displayName}</h3>
+                                                <p className="text-xs text-gray-500">Sent a friend request</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <button 
+                                                onClick={() => respondToRequest(req._id, 'reject')}
+                                                className="px-3 py-1.5 text-sm font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200"
+                                            >
+                                                Ignore
+                                            </button>
+                                            <button 
+                                                onClick={() => respondToRequest(req._id, 'accept')}
+                                                className="px-3 py-1.5 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700"
+                                            >
+                                                Accept
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )
                     )}
                 </div>
             )}

@@ -42,8 +42,9 @@ function App() {
             <Route path="timetable" element={<Timetable />} />
             <Route path="attendance" element={<AttendanceTracker />} />
             <Route path="todos" element={<TodoBoard />} />
+            <Route path="sgpa" element={<SGPACalculator />} />
             <Route path="focus" element={<FocusTimer />} />
-            {/* <Route path="college" element={<YourCollege />} />  Temporarily disabled for debugging */}
+            <Route path="college" element={<YourCollege />} />
             <Route path="budget" element={<SmartBudget />} />
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Route>

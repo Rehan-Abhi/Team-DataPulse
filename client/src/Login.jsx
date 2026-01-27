@@ -59,7 +59,8 @@ function Login() {
              // Navigation handled by PublicRoute wrapper in App.jsx
 
         } catch (error) {
-            console.error(error);
+            console.error("Google Login Error:", error);
+            alert("Google Sign-in Failed: " + error.message);
         }
     }
 
