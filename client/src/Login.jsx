@@ -30,8 +30,9 @@ function Login() {
         try {
             const userCredential = await signInWithEmailAndPassword(auth, email, password);
              // Get the token to send to backend
-            const token = await userCredential.user.getIdToken();
-            console.log("Logged In! Token:", token);
+            // Given that we use api.js interceptor, we might not need to manually get the token here just for logging
+            // const token = await userCredential.user.getIdToken();
+            // console.log("Logged In! Token:", token);
             
             // Sync user to ensure MongoDB record exists
             await syncUser();
@@ -48,8 +49,8 @@ function Login() {
     const handleGoogleLogin = async () => {
         try {
             const result = await signInWithPopup(auth, googleProvider);
-            const token = await result.user.getIdToken();
-            console.log("Google User Token:", token);
+            // const token = await result.user.getIdToken();
+            // console.log("Google User Token:", token);
             
             // Sync user
             await syncUser();

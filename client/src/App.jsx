@@ -16,7 +16,7 @@ import YourCollege from './YourCollege';
 import SmartBudget from './components/SmartBudget';
 
 function App() {
-  console.log("App Component Rendering");
+
   return (
     <AuthProvider>
       <BrowserRouter>

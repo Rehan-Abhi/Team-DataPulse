@@ -114,11 +114,11 @@ const FocusTimer = () => {
 
         if (!manualStop) {
             try { 
-                alertSound.current.play().catch((e) => {
-                    console.log('Audio error:', e);
+                alertSound.current.play().catch(() => {
+                    // console.log('Audio error:', e);
                 }); 
-            } catch (e) {
-                console.log('Audio error:', e);
+            } catch {
+                // console.log('Audio error:', e);
             }
         }
         

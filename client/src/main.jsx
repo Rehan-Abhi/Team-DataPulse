@@ -5,7 +5,7 @@ import App from './App.jsx'
 
 import ErrorBoundary from './ErrorBoundary';
 
-console.log("Main.jsx executing");
+
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <ErrorBoundary>

@@ -63,8 +63,7 @@ const Timetable = () => {
 
     const handleAddSlot = async (e) => {
         e.preventDefault();
-        console.log("Submitting form. EditingId:", editingId);
-        console.log("Form Data:", formData);
+
         
         try {
             if (editingId) {

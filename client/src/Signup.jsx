@@ -13,8 +13,8 @@ function Signup() {
     const handleSignup = async (e) => {
         e.preventDefault();
         try {
-            const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-            console.log("Registered! User:", userCredential.user);
+            await createUserWithEmailAndPassword(auth, email, password);
+             // console.log("Registered! User:", userCredential.user);
             
             // Sync with backend (Non-blocking but we should wait before refresh)
             // Even if sync fails, AuthContext will eventualy catch up or we retry later
