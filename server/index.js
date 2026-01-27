@@ -10,9 +10,37 @@ const Attendance = require('./models/Attendance');
 const Todo = require('./models/Todo');
 const Semester = require('./models/Semester');
 const FocusSession = require('./models/FocusSession');
+const libraryRoutes = require('./routes/library');
+const discussionRoutes = require('./routes/discussion');
+const lostFoundRoutes = require('./routes/lostfound'); // [NEW] LostFound
+const chatRoutes = require('./routes/chat'); // [NEW] Chat
+const budgetRoutes = require('./routes/budget'); // [NEW] Smart Budgetor
+const friendsRoutes = require('./routes/friends'); // [NEW] Friends v2
+const studioRoutes = require('./routes/studio'); // [NEW] DataPulse Studio
 
 const admin = require('firebase-admin');
-const serviceAccount = require('./serviceAccountKey.json');
+
+let serviceAccount;
+if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+  // Production: Load from Environment Variable
+  try {
+    serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+  } catch (e) {
+    console.error("Failed to parse FIREBASE_SERVICE_ACCOUNT:", e);
+    process.exit(1);
+  }
+} else {
+  // Development: Load from local file
+  try {
+    serviceAccount = require('./serviceAccountKey.json');
+  } catch (e) {
+    console.error("No serviceAccountKey.json found and FIREBASE_SERVICE_ACCOUNT not set.");
+    process.exit(1);
+  }
+}
+
+// Middleware Imports
+const verifyToken = require('./middleware/auth');
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)
@@ -20,7 +48,8 @@ admin.initializeApp({
 
 // Middleware
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
 // MongoDB Connection
 const clientOptions = { serverApi: { version: '1', strict: true, deprecationErrors: true } };
@@ -30,17 +59,7 @@ mongoose.connect(process.env.MONGODB_URI, clientOptions)
   .catch(err => console.error('Could not connect to MongoDB:', err));
 
 // Middleware to protect routes
-const verifyToken = async (req, res, next) => {
-    const token = req.headers.authorization?.split(' ')[1]; // Expect "Bearer <token>"
-    if (!token) return res.status(401).send("Unauthorized");
-    try {
-        const decodedToken = await admin.auth().verifyIdToken(token);
-        req.user = decodedToken; // Add user info to request
-        next();
-    } catch (error) {
-        res.status(401).send("Invalid Token");
-    }
-};
+// Middleware to protect routes (Imported)
 
 // Basic Route
 app.get('/', (req, res) => {
@@ -92,15 +111,15 @@ app.put('/api/users/profile', verifyToken, async (req, res) => {
                 university, 
                 branch, 
                 semester,
-                semester,
                 isProfileComplete: true,
                 // Ensure email and firebaseUid are set if creating new doc
-                email: req.user.email,
-                displayName: req.user.name || '',
+                email: req.user.email || (`no-email-${uid}`),
+                displayName: req.user.name || req.user.email || 'Student',
                 photoURL: req.user.picture || ''
             },
             { new: true, upsert: true }
         );
+        console.log("Profile Updated:", user);
         res.status(200).json(user);
     } catch (error) {
         console.error('Error updating profile:', error);
@@ -131,7 +150,9 @@ app.get('/api/timetable', verifyToken, async (req, res) => {
     }
 });
 
-// Add Timetable Slot
+
+
+// Add Timetable Slot (Restored)
 app.post('/api/timetable', verifyToken, async (req, res) => {
     const { day, startTime, endTime, title, location, type } = req.body;
     try {
@@ -149,6 +170,7 @@ app.post('/api/timetable', verifyToken, async (req, res) => {
         res.status(500).send('Server Error');
     }
 });
+
 
 // Update Timetable Slot
 app.put('/api/timetable/:id', verifyToken, async (req, res) => {
@@ -483,6 +505,15 @@ app.delete('/api/semesters/:id', verifyToken, async (req, res) => {
         res.status(500).send('Server Error');
     }
 });
+
+// --- LIBRARY ROUTES ---
+app.use('/api/library', libraryRoutes);
+app.use('/api/discussion', discussionRoutes);
+app.use('/api/lostfound', lostFoundRoutes);
+app.use('/api/chat', chatRoutes);
+app.use('/api/budget', verifyToken, budgetRoutes);
+app.use('/api/friends', friendsRoutes);
+app.use('/api/studio', studioRoutes);
 
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);

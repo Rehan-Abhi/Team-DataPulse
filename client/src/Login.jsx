@@ -28,10 +28,11 @@ function Login() {
     const handleLogin = async (e) => {
         e.preventDefault();
         try {
-            const userCredential = await signInWithEmailAndPassword(auth, email, password);
+            await signInWithEmailAndPassword(auth, email, password);
              // Get the token to send to backend
-            const token = await userCredential.user.getIdToken();
-            console.log("Logged In! Token:", token);
+            // Given that we use api.js interceptor, we might not need to manually get the token here just for logging
+            // const token = await userCredential.user.getIdToken();
+            // console.log("Logged In! Token:", token);
             
             // Sync user to ensure MongoDB record exists
             await syncUser();
@@ -47,9 +48,9 @@ function Login() {
 
     const handleGoogleLogin = async () => {
         try {
-            const result = await signInWithPopup(auth, googleProvider);
-            const token = await result.user.getIdToken();
-            console.log("Google User Token:", token);
+            await signInWithPopup(auth, googleProvider);
+            // const token = await result.user.getIdToken();
+            // console.log("Google User Token:", token);
             
             // Sync user
             await syncUser();
@@ -59,7 +60,8 @@ function Login() {
              // Navigation handled by PublicRoute wrapper in App.jsx
 
         } catch (error) {
-            console.error(error);
+            console.error("Google Login Error:", error);
+            alert("Google Sign-in Failed: " + error.message);
         }
     }
 

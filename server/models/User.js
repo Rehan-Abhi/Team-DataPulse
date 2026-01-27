@@ -21,6 +21,12 @@ const userSchema = new mongoose.Schema({
   branch: { type: String },
   semester: { type: Number },
   isProfileComplete: { type: Boolean, default: false },
+  friends: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+  friendRequests: [{
+    from: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    status: { type: String, enum: ['pending', 'accepted', 'rejected'], default: 'pending' },
+    createdAt: { type: Date, default: Date.now }
+  }],
 }, { timestamps: true });
 
 module.exports = mongoose.model('User', userSchema);

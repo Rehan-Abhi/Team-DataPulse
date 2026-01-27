@@ -63,9 +63,10 @@ export function AuthProvider({ children }) {
         }
     };
 
+
     return (
         <AuthContext.Provider value={value}>
-            {!loading && children}
+            {loading ? <div className="flex items-center justify-center h-screen bg-gray-100 text-gray-800 font-bold">Loading... (Context)</div> : children}
         </AuthContext.Provider>
     );
 }

@@ -12,8 +12,12 @@ import AttendanceTracker from './AttendanceTracker';
 import TodoBoard from './TodoBoard';
 import SGPACalculator from './SGPACalculator';
 import FocusTimer from './FocusTimer';
+import YourCollege from './YourCollege';
+import SmartBudget from './components/SmartBudget';
+import DataPulseStudio from './components/DataPulseStudio';
 
 function App() {
+
   return (
     <AuthProvider>
       <BrowserRouter>
@@ -41,6 +45,10 @@ function App() {
             <Route path="todos" element={<TodoBoard />} />
             <Route path="sgpa" element={<SGPACalculator />} />
             <Route path="focus" element={<FocusTimer />} />
+            <Route path="college" element={<YourCollege />} />
+            <Route path="budget" element={<SmartBudget />} />
+            <Route path="studio" element={<DataPulseStudio />} />
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Route>
           
           <Route path="/" element={<Navigate to="/login" replace />} />
