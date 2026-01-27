@@ -20,7 +20,7 @@ export default function DataPulseStudio() {
         };
         loadVoices();
         synth.onvoiceschanged = loadVoices;
-    }, []);
+    }, [synth]);
 
     const handleFileChange = (e) => {
         setFile(e.target.files[0]);

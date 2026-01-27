@@ -28,7 +28,7 @@ function Login() {
     const handleLogin = async (e) => {
         e.preventDefault();
         try {
-            const userCredential = await signInWithEmailAndPassword(auth, email, password);
+            await signInWithEmailAndPassword(auth, email, password);
              // Get the token to send to backend
             // Given that we use api.js interceptor, we might not need to manually get the token here just for logging
             // const token = await userCredential.user.getIdToken();
@@ -48,7 +48,7 @@ function Login() {
 
     const handleGoogleLogin = async () => {
         try {
-            const result = await signInWithPopup(auth, googleProvider);
+            await signInWithPopup(auth, googleProvider);
             // const token = await result.user.getIdToken();
             // console.log("Google User Token:", token);
             
