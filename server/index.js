@@ -18,7 +18,25 @@ const budgetRoutes = require('./routes/budget'); // [NEW] Smart Budgetor
 const friendsRoutes = require('./routes/friends'); // [NEW] Friends v2
 
 const admin = require('firebase-admin');
-const serviceAccount = require('./serviceAccountKey.json');
+
+let serviceAccount;
+if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+  // Production: Load from Environment Variable
+  try {
+    serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+  } catch (e) {
+    console.error("Failed to parse FIREBASE_SERVICE_ACCOUNT:", e);
+    process.exit(1);
+  }
+} else {
+  // Development: Load from local file
+  try {
+    serviceAccount = require('./serviceAccountKey.json');
+  } catch (e) {
+    console.error("No serviceAccountKey.json found and FIREBASE_SERVICE_ACCOUNT not set.");
+    process.exit(1);
+  }
+}
 
 // Middleware Imports
 const verifyToken = require('./middleware/auth');
