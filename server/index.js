@@ -16,6 +16,7 @@ const lostFoundRoutes = require('./routes/lostfound'); // [NEW] LostFound
 const chatRoutes = require('./routes/chat'); // [NEW] Chat
 const budgetRoutes = require('./routes/budget'); // [NEW] Smart Budgetor
 const friendsRoutes = require('./routes/friends'); // [NEW] Friends v2
+const studioRoutes = require('./routes/studio'); // [NEW] DataPulse Studio
 
 const admin = require('firebase-admin');
 
@@ -512,6 +513,7 @@ app.use('/api/lostfound', lostFoundRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/budget', verifyToken, budgetRoutes);
 app.use('/api/friends', friendsRoutes);
+app.use('/api/studio', studioRoutes);
 
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);

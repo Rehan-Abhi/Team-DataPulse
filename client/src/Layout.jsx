@@ -42,6 +42,11 @@ function Layout() {
             }>
                 Smart Budgetor 💰
             </Link>
+            <Link to="/dashboard/studio" className={({ isActive }) => 
+                `flex items-center gap-2 p-3 rounded-xl transition-all ${isActive ? 'bg-indigo-50 text-indigo-600 font-bold' : 'text-gray-600 hover:bg-gray-50'}`
+            }>
+                DataPulse Studio 🎙️
+            </Link>
          </nav>
         <button onClick={handleLogout} className="logout-btn">Logout</button>
       </aside>

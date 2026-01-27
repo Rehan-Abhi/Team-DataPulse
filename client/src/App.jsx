@@ -14,6 +14,7 @@ import SGPACalculator from './SGPACalculator';
 import FocusTimer from './FocusTimer';
 import YourCollege from './YourCollege';
 import SmartBudget from './components/SmartBudget';
+import DataPulseStudio from './components/DataPulseStudio';
 
 function App() {
 
@@ -46,6 +47,7 @@ function App() {
             <Route path="focus" element={<FocusTimer />} />
             <Route path="college" element={<YourCollege />} />
             <Route path="budget" element={<SmartBudget />} />
+            <Route path="studio" element={<DataPulseStudio />} />
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Route>
           
