@@ -12,7 +12,6 @@ function DashboardHome() {
     const [budgetStats, setBudgetStats] = useState({ totalSpent: 0, monthlyBudget: 0 });
     const [pendingTasks, setPendingTasks] = useState([]);
     const [focusStats, setFocusStats] = useState({ totalMinutes: 0, dailyFocusGoal: 0 });
-    const [friendsActivity, setFriendsActivity] = useState([]);
 
     useEffect(() => {
         const unsubscribe = auth.onAuthStateChanged(async (currentUser) => {
@@ -96,19 +95,6 @@ function DashboardHome() {
                             });
                         }
                     } catch (e) { console.error("Focus fetch error", e); }
-
-                    // 6. Friends Activity
-                    try {
-                        const friendsRes = await api.get('/friends/mine');
-                        if (friendsRes.data) {
-                            // Sort by status (busy > free > offline)
-                            const sorted = friendsRes.data.sort((a, b) => {
-                                const score = (s) => s === 'busy' ? 3 : s === 'free' ? 2 : 1;
-                                return score(b.liveStatus?.state) - score(a.liveStatus?.state);
-                            });
-                            setFriendsActivity(sorted.slice(0, 5)); // Top 5 relevant friends
-                        }
-                    } catch (e) { console.error("Friends fetch error", e); }
 
 
                 } catch (error) {
@@ -310,42 +296,6 @@ function DashboardHome() {
                             <div className="text-center">
                                 <p className="text-gray-400 text-sm mb-3">No daily goal set.</p>
                                 <Link to="/dashboard/focus" className="bg-blue-50 text-blue-600 px-4 py-2 rounded-lg text-sm font-bold hover:bg-blue-100 transition-colors">Set Goal</Link>
-                            </div>
-                        )}
-                    </div>
-                </div>
-
-                {/* 5. Friends Activity */}
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                    <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-xl font-bold text-gray-800">Friends 👥</h3>
-                        <Link to="/dashboard/college" className="text-sm text-blue-600 hover:underline">View All</Link>
-                    </div>
-                    
-                    <div className="h-64 overflow-y-auto space-y-3 pr-1 custom-scrollbar">
-                        {friendsActivity.length > 0 ? (
-                            friendsActivity.map(friend => (
-                                <div key={friend._id} className="flex items-center gap-3 p-2 bg-gray-50 rounded-xl border border-gray-100 hover:shadow-sm transition-shadow">
-                                    <div className="relative">
-                                        <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-lg overflow-hidden">
-                                            {friend.photoURL ? <img src={friend.photoURL} alt={friend.displayName} className="w-full h-full object-cover"/> : <span>👤</span>}
-                                        </div>
-                                         <span className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border border-white ${friend.liveStatus?.state === 'busy' ? 'bg-red-500' : friend.liveStatus?.state === 'free' ? 'bg-green-500' : 'bg-gray-400'}`}></span>
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <h4 className="font-bold text-sm text-gray-800 truncate">{friend.displayName}</h4>
-                                        <p className="text-xs text-gray-500 truncate">
-                                            {friend.liveStatus?.status || "Offline"} 
-                                            {friend.liveStatus?.endTime && <span className="text-gray-400 ml-1">({friend.liveStatus.endTime})</span>}
-                                        </p>
-                                    </div>
-                                </div>
-                            ))
-                        ) : (
-                            <div className="h-full flex flex-col items-center justify-center text-center text-gray-400">
-                                <span className="text-2xl mb-2">👋</span>
-                                <p className="text-sm">No friends active.</p>
-                                <Link to="/dashboard/college" className="text-blue-500 text-xs mt-2">Add Friends</Link>
                             </div>
                         )}
                     </div>
