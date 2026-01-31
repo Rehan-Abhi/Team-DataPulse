@@ -16,6 +16,8 @@ const FocusTimer = () => {
     const [tasks, setTasks] = useState([]);
     const [selectedTaskId, setSelectedTaskId] = useState('');
     const [todayTotal, setTodayTotal] = useState(0);
+    const [dailyGoal, setDailyGoal] = useState(0); // [NEW]
+    const [showSetGoal, setShowSetGoal] = useState(false); // [NEW]
     
     // Session Tracking
     const startTimeRef = useRef(null);
@@ -28,9 +30,20 @@ const FocusTimer = () => {
             if (auth.currentUser) {
                 const res = await api.get('/focus/today');
                 setTodayTotal(res.data.totalMinutes);
+                setDailyGoal(res.data.dailyFocusGoal);
             }
         } catch (error) {
             console.error("Error fetching stats:", error);
+        }
+    };
+    
+    const handleSetGoal = async (newGoal) => {
+        try {
+            const res = await api.post('/focus/goal', { dailyFocusGoal: newGoal });
+            setDailyGoal(res.data.dailyFocusGoal);
+            setShowSetGoal(false);
+        } catch (error) {
+            console.error("Error setting goal:", error);
         }
     };
 
@@ -75,6 +88,24 @@ const FocusTimer = () => {
                             startTimeRef.current = startTime;
                         } else {
                             // Finished while gone
+                            if (sMode === 'focus') {
+                                // Save the missed session
+                                const sessionData = {
+                                    taskId: taskId || null,
+                                    duration: duration,
+                                    type: 'focus',
+                                    startTime: startTime,
+                                    endTime: new Date(startTime.getTime() + duration * 60000)
+                                };
+                                api.post('/focus/session', sessionData)
+                                   .then(() => fetchStats())
+                                   .catch(e => console.error("Auto-save failed:", e));
+                                
+                                if (Notification.permission === "granted") {
+                                    new Notification("Focus Session Complete!");
+                                }
+                            }
+
                             setMode(sMode);
                             setTimeLeft(0);
                             setIsActive(false); 
@@ -95,6 +126,7 @@ const FocusTimer = () => {
                     
                     const resStats = await api.get('/focus/today');
                     setTodayTotal(resStats.data.totalMinutes);
+                    setDailyGoal(resStats.data.dailyFocusGoal);
                 } catch (error) { 
                     console.error('Error initializing data:', error);
                 }
@@ -176,20 +208,25 @@ const FocusTimer = () => {
         
         if (isActive) {
             interval = setInterval(() => {
-                setTimeLeft((prevTime) => {
-                    const newTime = prevTime - 1;
-                    if (newTime <= 0) {
-                        clearInterval(interval);
-                        handleTimerComplete(false); 
-                        return 0;
-                    }
-                    return newTime;
-                });
+                const now = new Date();
+                // Calculate elapsed time based on start time (handles sleep/drift)
+                const elapsedSeconds = Math.floor((now - startTimeRef.current) / 1000);
+                const currentDurationMinutes = mode === 'focus' ? focusDuration : breakDuration;
+                const totalSeconds = currentDurationMinutes * 60;
+                const remaining = totalSeconds - elapsedSeconds;
+
+                if (remaining <= 0) {
+                    clearInterval(interval);
+                    setTimeLeft(0);
+                    handleTimerComplete(false); 
+                } else {
+                    setTimeLeft(remaining);
+                }
             }, 1000);
         }
         
         return () => clearInterval(interval);
-    }, [isActive, handleTimerComplete]); 
+    }, [isActive, mode, focusDuration, breakDuration, handleTimerComplete]); 
 
     const toggleTimer = () => {
         if (!isActive) {
@@ -245,13 +282,65 @@ const FocusTimer = () => {
             <div className={`absolute inset-0 transition-opacity duration-1000 ${mode === 'focus' ? 'bg-red-50 opacity-30' : 'bg-green-50 opacity-30'}`}></div>
 
             {/* Top Stats */}
-            <div className="absolute top-6 left-6 z-20 bg-white/50 backdrop-blur-md px-6 py-3 rounded-full shadow-sm border border-gray-100 flex items-center gap-3 animate-fade-in">
-                <span className="text-2xl">🔥</span>
-                <div>
-                    <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Today's Focus</p>
-                    <p className="text-xl font-bold text-gray-800">{todayTotal} <span className="text-sm font-normal text-gray-500">mins</span></p>
+            <div className="absolute top-6 left-6 z-20 flex flex-col gap-3 animate-fade-in">
+                <div className="bg-white/50 backdrop-blur-md px-6 py-3 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-3">
+                    <span className="text-2xl">🔥</span>
+                    <div>
+                        <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Today's Focus</p>
+                        <p className="text-xl font-bold text-gray-800">{todayTotal} <span className="text-sm font-normal text-gray-500">mins</span></p>
+                    </div>
                 </div>
+
+                {/* Goal Progress */}
+                {dailyGoal > 0 ? (
+                    <div className="bg-white/50 backdrop-blur-md px-6 py-3 rounded-2xl shadow-sm border border-gray-100 w-full">
+                        <div className="flex justify-between items-center mb-1">
+                            <span className="text-xs font-bold text-gray-500 uppercase">Daily Goal</span>
+                            <span className="text-xs font-bold text-gray-500">{Math.min(100, Math.round((todayTotal/dailyGoal)*100))}%</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2 mb-1">
+                            <div className="bg-gradient-to-r from-orange-400 to-red-500 h-2 rounded-full transition-all duration-500" style={{ width: `${Math.min(100, (todayTotal/dailyGoal)*100)}%` }}></div>
+                        </div>
+                        <div className="flex justify-between text-[10px] text-gray-400">
+                             <span>{todayTotal}m</span>
+                             <button onClick={() => setShowSetGoal(true)} className="hover:text-blue-600 underline">Goal: {dailyGoal}m</button>
+                        </div>
+                    </div>
+                ) : (
+                    <button 
+                        onClick={() => setShowSetGoal(true)}
+                        className="bg-white/50 backdrop-blur-md px-6 py-2 rounded-full shadow-sm border border-gray-100 text-sm font-bold text-blue-600 hover:bg-white hover:scale-105 transition-all"
+                    >
+                        🎯 Set Daily Goal
+                    </button>
+                )}
             </div>
+
+            {/* Set Goal Modal */}
+            {showSetGoal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+                    <div className="bg-white p-6 rounded-2xl shadow-2xl max-w-sm w-full animate-bounce-in">
+                        <h3 className="text-lg font-bold text-gray-800 mb-2">Set Daily Focus Goal 🎯</h3>
+                        <p className="text-sm text-gray-500 mb-4">How many minutes do you want to focus today?</p>
+                        <form onSubmit={(e) => {
+                            e.preventDefault();
+                            handleSetGoal(Number(e.target.goal.value));
+                        }}>
+                            <input 
+                                name="goal" 
+                                type="number" 
+                                className="w-full border-2 border-gray-100 rounded-xl p-3 text-lg font-bold text-center focus:border-blue-500 outline-none mb-4" 
+                                defaultValue={dailyGoal || 60}
+                                autoFocus
+                            />
+                            <div className="flex gap-2">
+                                <button type="button" onClick={() => setShowSetGoal(false)} className="flex-1 py-2 rounded-xl font-bold text-gray-500 hover:bg-gray-100">Cancel</button>
+                                <button type="submit" className="flex-1 py-2 rounded-xl font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-200">Save Goal</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
 
             {/* Main Timer Area */}
             <div className="z-10 flex flex-col items-center">

@@ -20,11 +20,11 @@ router.get('/transactions', async (req, res) => {
             return res.status(404).json({ error: "User not found" });
         }
 
-        console.log(`[Budget] Found User _id: ${user._id}`);
+            console.log(`[Budget] Found User _id: ${user._id}`);
         const txs = await Transaction.find({ user: user._id }).sort({ date: -1 });
         console.log(`[Budget] Found ${txs.length} transactions`);
         
-        res.json(txs);
+        res.json({ transactions: txs, monthlyBudget: user.monthlyBudget || 0 });
     } catch (err) {
         console.error(`[Budget] Error: ${err.message}`);
         res.status(500).json({ error: err.message });
@@ -74,6 +74,26 @@ router.post('/transactions/batch', async (req, res) => {
     }
 });
 
+// Update Transaction
+router.put('/transactions/:id', async (req, res) => {
+    try {
+        const user = await User.findOne({ firebaseUid: req.user.uid });
+        if (!user) return res.status(404).json({ error: "User not found" });
+
+        const { type, amount, category, description, date } = req.body;
+        const tx = await Transaction.findOneAndUpdate(
+            { _id: req.params.id, user: user._id },
+            { type, amount, category, description, date },
+            { new: true }
+        );
+
+        if (!tx) return res.status(404).json({ error: "Transaction not found" });
+        res.json(tx);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // Delete Transaction
 router.delete('/transactions/:id', async (req, res) => {
     try {
@@ -105,7 +125,10 @@ router.delete('/transactions/all/confirm', async (req, res) => {
 // Get Debts (Owed to me and I owe)
 router.get('/debts', async (req, res) => {
     try {
-        const userId = req.user.uid;
+        const user = await User.findOne({ firebaseUid: req.user.uid });
+        if (!user) return res.status(404).json({ error: "User not found" });
+
+        const userId = user._id;
         // debts where I am 'fromUser' (I owe)
         const iOwe = await Debt.find({ fromUser: userId, isSettled: false }).populate('toUser', 'displayName email');
         // debts where I am 'toUser' (Owed to me)
@@ -121,28 +144,57 @@ router.get('/debts', async (req, res) => {
 // For mvp, let's say "I lent money to X" -> from: X, to: Me.
 router.post('/debts', async (req, res) => {
     try {
-        const { targetEmail, amount, description, type } = req.body; 
+        const { friendId, friendName, amount, description, type } = req.body; 
         // type: 'lent' (they owe me) or 'borrowed' (I owe them)
         
-        const targetUser = await User.findOne({ email: targetEmail });
-        if (!targetUser) return res.status(404).json({ error: "User not found" });
+        let targetUserId = null;
+        let targetUserName = null;
 
-        let debt;
-        if (type === 'lent') {
-            debt = new Debt({
-                fromUser: targetUser._id, // They owe
-                toUser: req.user.uid,     // Me
-                amount,
-                description
-            });
+        if (friendId && friendId !== 'manual') {
+             targetUserId = friendId;
+        } else if (friendName) {
+             targetUserName = friendName;
         } else {
-            debt = new Debt({
-                fromUser: req.user.uid,   // I owe
-                toUser: targetUser._id,   // Them
-                amount,
-                description
-            });
+             return res.status(400).json({ error: "Friend must be selected or named" });
         }
+
+        let debtData = { amount, description, isSettled: false };
+        
+        // Current user's ID
+        const myId = req.user.uid; 
+        // CAREFUL: req.user.uid is Firebase UID. 
+        // We probably need the Mongo _id for referencing 'User' model if we use ObjectIds.
+        // The previous code was: fromUser: targetUser._id ... toUser: req.user.uid
+        // Wait, did the previous schema use FirebaseUID for ref?
+        // Schema: ref: 'User'. Usually implies Mongo _id.
+        // Let's check User model or previous budget.js usage.
+        
+        const me = await User.findOne({ firebaseUid: myId });
+        if (!me) return res.status(404).json({ error: "User not found" });
+
+        if (type === 'lent') { 
+            // I lent -> They owe Me
+            // from: Them, to: Me
+            debtData.toUser = me._id;
+            
+            if (targetUserId) {
+                 debtData.fromUser = targetUserId;
+            } else {
+                 debtData.borrowerName = targetUserName;
+            }
+        } else { 
+            // I borrowed -> I owe Them
+            // from: Me, to: Them
+            debtData.fromUser = me._id;
+            
+            if (targetUserId) {
+                 debtData.toUser = targetUserId;
+            } else {
+                 debtData.lenderName = targetUserName;
+            }
+        }
+
+        const debt = new Debt(debtData);
         await debt.save();
         res.status(201).json(debt);
     } catch (err) {
@@ -155,6 +207,21 @@ router.put('/debts/:id/settle', async (req, res) => {
     try {
         await Debt.findByIdAndUpdate(req.params.id, { isSettled: true });
         res.json({ message: "Settled" });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Update Monthly Budget Goal
+router.post('/goal', async (req, res) => {
+    try {
+        const { monthlyBudget } = req.body;
+        const user = await User.findOneAndUpdate(
+            { firebaseUid: req.user.uid },
+            { monthlyBudget },
+            { new: true }
+        );
+        res.json({ monthlyBudget: user.monthlyBudget });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

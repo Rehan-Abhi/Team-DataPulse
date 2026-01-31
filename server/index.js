@@ -458,6 +458,22 @@ app.post('/api/focus/session', verifyToken, async (req, res) => {
     }
 });
 
+// Set Daily Focus Goal
+app.post('/api/focus/goal', verifyToken, async (req, res) => {
+    try {
+        const { dailyFocusGoal } = req.body;
+        const user = await User.findOneAndUpdate(
+            { firebaseUid: req.user.uid },
+            { dailyFocusGoal },
+            { new: true }
+        );
+        res.status(200).json({ dailyFocusGoal: user.dailyFocusGoal });
+    } catch (error) {
+        console.error('Error setting focus goal:', error);
+        res.status(500).send('Server Error');
+    }
+});
+
 // Get Today's Focus Stats
 app.get('/api/focus/today', verifyToken, async (req, res) => {
     try {
@@ -476,7 +492,10 @@ app.get('/api/focus/today', verifyToken, async (req, res) => {
         const totalMinutes = sessions.reduce((acc, curr) => acc + curr.duration, 0);
         console.log(`[Stats] Total Minutes: ${totalMinutes}`);
 
-        res.status(200).json({ totalMinutes });
+        res.status(200).json({ 
+            totalMinutes, 
+            dailyFocusGoal: user.dailyFocusGoal || 0 
+        });
     } catch (error) {
         console.error('Error fetching focus stats:', error);
         res.status(500).send('Server Error');

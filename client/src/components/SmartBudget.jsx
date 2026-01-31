@@ -10,13 +10,16 @@ export default function SmartBudget() {
     const [transactions, setTransactions] = useState([]);
     const [debts, setDebts] = useState({ iOwe: [], owedToMe: [] });
     const [friendsList, setFriendsList] = useState([]);
+    const [monthlyBudget, setMonthlyBudget] = useState(0);
     const [showAddTx, setShowAddTx] = useState(false);
     const [showAddDebt, setShowAddDebt] = useState(false);
     const [showImport, setShowImport] = useState(false);
+    const [showSetBudget, setShowSetBudget] = useState(false);
     
-    // Forms
+    const [editingTx, setEditingTx] = useState(null); // Track which tx is being edited
     const [newTx, setNewTx] = useState({ type: 'expense', amount: '', category: 'Food', description: '' });
-    const [newDebt, setNewDebt] = useState({ targetEmail: '', amount: '', description: '', type: 'lent', friendId: '' });
+    const [newDebt, setNewDebt] = useState({ friendName: '', amount: '', description: '', type: 'lent', friendId: '' });
+    const [budgetInput, setBudgetInput] = useState('');
 
     const fetchData = useCallback(async () => {
         try {
@@ -29,7 +32,8 @@ export default function SmartBudget() {
             const [txRes, debtRes, friendsRes] = results;
 
             if (txRes.status === 'fulfilled') {
-                setTransactions(txRes.value.data);
+                setTransactions(txRes.value.data.transactions || txRes.value.data); // Handle legacy array return vs new object return
+                if (txRes.value.data.monthlyBudget !== undefined) setMonthlyBudget(txRes.value.data.monthlyBudget);
             } else {
                 console.error("Tx Fetch Failed:", txRes.reason);
             }
@@ -58,15 +62,43 @@ export default function SmartBudget() {
         load();
     }, [fetchData]);
 
-    const handleAddTx = async (e) => {
+    const handleSetBudget = async (e) => {
         e.preventDefault();
         try {
-            await api.post('/budget/transactions', newTx);
+            const res = await api.post('/budget/goal', { monthlyBudget: Number(budgetInput) });
+            setMonthlyBudget(res.data.monthlyBudget);
+            setShowSetBudget(false);
+        } catch {
+            alert("Failed to update budget goal");
+        }
+    };
+
+    const handleAddOrUpdateTx = async (e) => {
+        e.preventDefault();
+        try {
+            if (editingTx) {
+                await api.put(`/budget/transactions/${editingTx._id}`, newTx);
+                setEditingTx(null);
+            } else {
+                await api.post('/budget/transactions', newTx);
+            }
             setShowAddTx(false);
+            setNewTx({ type: 'expense', amount: '', category: 'Food', description: '' }); // Reset form
             fetchData();
         } catch {
-            alert("Failed to add transaction");
+            alert(editingTx ? "Failed to update transaction" : "Failed to add transaction");
         }
+    };
+
+    const handleEditClick = (tx) => {
+        setEditingTx(tx);
+        setNewTx({
+            type: tx.type,
+            amount: tx.amount,
+            category: tx.category,
+            description: tx.description || ''
+        });
+        setShowAddTx(true);
     };
 
     const handleAddDebt = async (e) => {
@@ -74,7 +106,7 @@ export default function SmartBudget() {
         try {
             await api.post('/budget/debts', newDebt);
             setShowAddDebt(false);
-            setNewDebt({ targetEmail: '', amount: '', description: '', type: 'lent' });
+            setNewDebt({ friendName: '', amount: '', description: '', type: 'lent', friendId: '' });
             fetchData();
         } catch (error) {
             console.error(error);
@@ -151,10 +183,10 @@ export default function SmartBudget() {
     const handleFriendSelect = (e) => {
         const friendId = e.target.value;
         if (friendId === 'manual') {
-            setNewDebt({ ...newDebt, friendId: 'manual', targetEmail: '' });
+            setNewDebt({ ...newDebt, friendId: 'manual', friendName: '' });
         } else {
              const friend = friendsList.find(f => f._id === friendId);
-             setNewDebt({ ...newDebt, friendId: friendId, targetEmail: friend.email || '' });
+             setNewDebt({ ...newDebt, friendId: friendId, friendName: friend.displayName || '' }); // Use name if available
         }
     };
 
@@ -205,9 +237,25 @@ export default function SmartBudget() {
             </div>
 
             {/* Header Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                    <h3 className="text-gray-500 font-medium mb-1">Total Spent (This Month)</h3>
+                    <div className="flex justify-between items-center mb-1">
+                        <h3 className="text-gray-500 font-medium">Monthly Goal</h3>
+                        <button onClick={() => { setBudgetInput(monthlyBudget); setShowSetBudget(true); }} className="text-blue-600 hover:text-blue-800 text-sm font-semibold">Set Goal</button>
+                    </div>
+                    <p className="text-3xl font-extrabold text-gray-800">₹{monthlyBudget.toLocaleString()}</p>
+                    {monthlyBudget > 0 && (
+                        <div className="mt-2 w-full bg-gray-200 rounded-full h-2.5">
+                            <div 
+                                className={`h-2.5 rounded-full ${totalSpent > monthlyBudget ? 'bg-red-600' : 'bg-green-600'}`} 
+                                style={{ width: `${Math.min((totalSpent / monthlyBudget) * 100, 100)}%` }}
+                            ></div>
+                            <p className="text-xs text-gray-400 mt-1 text-right">{((totalSpent / monthlyBudget) * 100).toFixed(0)}% used</p>
+                        </div>
+                    )}
+                </div>
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                    <h3 className="text-gray-500 font-medium mb-1">Total Spent</h3>
                     <p className="text-3xl font-extrabold text-red-600">₹{totalSpent.toFixed(2)}</p>
                 </div>
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
@@ -295,9 +343,14 @@ export default function SmartBudget() {
                                 <div className="flex-1 min-w-0 mr-4">
                                     <div className="flex justify-between">
                                         <p className="font-bold text-gray-800 truncate">{t.description || "Unknown Transaction"}</p>
-                                        <button onClick={() => handleDeleteTx(t._id)} className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity px-2">
-                                            🗑️
-                                        </button>
+                                        <div className="flex gap-2">
+                                            <button onClick={() => handleEditClick(t)} className="text-gray-300 hover:text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity px-2">
+                                                ✏️
+                                            </button>
+                                            <button onClick={() => handleDeleteTx(t._id)} className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity px-2">
+                                                🗑️
+                                            </button>
+                                        </div>
                                     </div>
                                     <div className="flex justify-between text-xs text-gray-500 mt-1">
                                         <span>{new Date(t.date).toLocaleDateString()} • {t.category}</span>
@@ -318,7 +371,7 @@ export default function SmartBudget() {
                     {debts.owedToMe.length === 0 && <p className="text-sm text-gray-400 italic mb-4">No one owes you money.</p>}
                     {debts.owedToMe.map(d => (
                         <div key={d._id} className="flex justify-between items-center mb-2 bg-green-50 p-2 rounded">
-                            <span className="text-sm font-medium text-gray-700">{d.fromUser?.displayName || "Friend"}</span>
+                            <span className="text-sm font-medium text-gray-700">{d.fromUser?.displayName || d.borrowerName || "Friend"}</span>
                             <div className="flex items-center gap-2">
                                 <span className="font-bold text-green-600">₹{d.amount}</span>
                                 <button onClick={() => handleSettle(d._id)} className="text-xs bg-white border border-gray-200 px-2 py-1 rounded hover:bg-gray-100">Settle</button>
@@ -330,7 +383,7 @@ export default function SmartBudget() {
                     {debts.iOwe.length === 0 && <p className="text-sm text-gray-400 italic">You are debt free!</p>}
                     {debts.iOwe.map(d => (
                          <div key={d._id} className="flex justify-between items-center mb-2 bg-red-50 p-2 rounded">
-                            <span className="text-sm font-medium text-gray-700">{d.toUser?.displayName || "Friend"}</span>
+                            <span className="text-sm font-medium text-gray-700">{d.toUser?.displayName || d.lenderName || "Friend"}</span>
                             <div className="flex items-center gap-2">
                                 <span className="font-bold text-red-600">₹{d.amount}</span>
                                 <button onClick={() => handleSettle(d._id)} className="text-xs bg-white border border-gray-200 px-2 py-1 rounded hover:bg-gray-100">Settle</button>
@@ -343,22 +396,31 @@ export default function SmartBudget() {
             {/* Modals */}
             {showAddTx && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-                    <form onSubmit={handleAddTx} className="bg-white p-6 rounded-xl w-full max-w-sm space-y-4">
-                        <h3 className="text-xl font-bold">Add Transaction</h3>
+                    <form onSubmit={handleAddOrUpdateTx} className="bg-white p-6 rounded-xl w-full max-w-sm space-y-4">
+                        <h3 className="text-xl font-bold">{editingTx ? "Edit Transaction" : "Add Transaction"}</h3>
                         <select className="w-full border p-2 rounded" value={newTx.type} onChange={e=>setNewTx({...newTx, type: e.target.value})}>
                             <option value="expense">Expense</option>
                             <option value="income">Income</option>
                         </select>
                         <input className="w-full border p-2 rounded" type="number" placeholder="Amount" value={newTx.amount} onChange={e=>setNewTx({...newTx, amount: Number(e.target.value)})} required />
-                        <input className="w-full border p-2 rounded" placeholder="Category" value={newTx.category} onChange={e=>setNewTx({...newTx, category: e.target.value})} />
-                        <input className="w-full border p-2 rounded" placeholder="Description" value={newTx.description} onChange={e=>setNewTx({...newTx, description: e.target.value})} />
+                        <select 
+                            className="w-full border p-2 rounded" 
+                            value={newTx.category} 
+                            onChange={e=>setNewTx({...newTx, category: e.target.value})}
+                        >
+                            {['Food', 'Fees', 'Stationery', 'Shopping', 'Transport', 'Entertainment', 'Health', 'Rent', 'Books', 'Miscellaneous'].map(cat => (
+                                <option key={cat} value={cat}>{cat}</option>
+                            ))}
+                        </select>
+                        <input className="w-full border p-2 rounded" placeholder="Description (Optional)" value={newTx.description} onChange={e=>setNewTx({...newTx, description: e.target.value})} />
                         <div className="flex gap-2">
                             <button type="submit" className="flex-1 bg-blue-600 text-white py-2 rounded">Save</button>
-                            <button type="button" onClick={()=>setShowAddTx(false)} className="flex-1 bg-gray-200 py-2 rounded">Cancel</button>
+                            <button type="button" onClick={() => { setShowAddTx(false); setEditingTx(null); setNewTx({ type: 'expense', amount: '', category: 'Food', description: '' }); }} className="flex-1 bg-gray-200 py-2 rounded">Cancel</button>
                         </div>
                     </form>
                 </div>
             )}
+
 
              {showAddDebt && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
@@ -378,12 +440,12 @@ export default function SmartBudget() {
                              >
                                 <option value="">-- Choose Friend --</option>
                                 {friendsList.map(f => <option key={f._id} value={f._id}>{f.displayName}</option>)}
-                                <option value="manual">Other (Enter Email)</option>
+                                <option value="manual">Other (Enter Name)</option>
                              </select>
                         </div>
 
                         {(newDebt.friendId === 'manual' || !newDebt.friendId) && (
-                            <input className="w-full border p-2 rounded" type="email" placeholder="Friend's Email" value={newDebt.targetEmail} onChange={e=>setNewDebt({...newDebt, targetEmail: e.target.value})} required={!newDebt.friendId || newDebt.friendId === 'manual'} />
+                            <input className="w-full border p-2 rounded" type="text" placeholder="Friend's Name" value={newDebt.friendName} onChange={e=>setNewDebt({...newDebt, friendName: e.target.value})} required={!newDebt.friendId || newDebt.friendId === 'manual'} />
                         )}
                         
                         <input className="w-full border p-2 rounded" type="number" placeholder="Amount" value={newDebt.amount} onChange={e=>setNewDebt({...newDebt, amount: Number(e.target.value)})} required />
@@ -410,6 +472,27 @@ export default function SmartBudget() {
 
                         <button onClick={()=>setShowImport(false)} className="text-gray-400 hover:text-gray-600">Cancel</button>
                     </div>
+                </div>
+            )}
+
+            {showSetBudget && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+                    <form onSubmit={handleSetBudget} className="bg-white p-6 rounded-xl w-full max-w-sm space-y-4">
+                        <h3 className="text-xl font-bold">Set Monthly Budget Goal</h3>
+                        <p className="text-sm text-gray-500">Set a target limit for your expenses this month.</p>
+                        <input 
+                            className="w-full border p-2 rounded" 
+                            type="number" 
+                            placeholder="e.g. 5000" 
+                            value={budgetInput} 
+                            onChange={e => setBudgetInput(e.target.value)} 
+                            required 
+                        />
+                        <div className="flex gap-2">
+                            <button type="submit" className="flex-1 bg-blue-600 text-white py-2 rounded">Save Status</button>
+                            <button type="button" onClick={() => setShowSetBudget(false)} className="flex-1 bg-gray-200 py-2 rounded">Cancel</button>
+                        </div>
+                    </form>
                 </div>
             )}
 

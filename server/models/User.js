@@ -20,6 +20,8 @@ const userSchema = new mongoose.Schema({
   university: { type: String },
   branch: { type: String },
   semester: { type: Number },
+  monthlyBudget: { type: Number, default: 0 },
+  dailyFocusGoal: { type: Number, default: 0 }, // In minutes
   isProfileComplete: { type: Boolean, default: false },
   friends: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   friendRequests: [{
