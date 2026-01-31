@@ -1,4 +1,4 @@
-const express = require('express');
+const express = require('express'); // Server entry point
 const cors = require('cors');
 require('dotenv').config();
 const app = express();

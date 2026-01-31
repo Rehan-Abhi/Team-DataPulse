@@ -1,7 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
+const path = require('path');
 const pdf = require('pdf-parse');
+console.log("DEBUG: pdf-parse import type:", typeof pdf, pdf); // Debug log
 const auth = require('../middleware/auth'); // Optional: verifyToken if we want protection
 
 // Multer setup (Memory storage for parsing)
@@ -26,7 +28,8 @@ async function generatePodcastScript(text, apiKey) {
     ${text.substring(0, 30000)} ... (truncated for brevity if too long)
     `;
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+    // Updated to Gemini 3.0 Flash (Preview) as per 2026 availability
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
     
     const response = await fetch(url, {
         method: 'POST',
@@ -37,10 +40,14 @@ async function generatePodcastScript(text, apiKey) {
     });
 
     if (!response.ok) {
-        throw new Error(`Gemini API Error: ${response.statusText}`);
+        const errorText = await response.text();
+        throw new Error(`Gemini API Error: ${response.status} ${response.statusText} - ${errorText}`);
     }
 
     const data = await response.json();
+    if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
+        throw new Error("Gemini API Error: No candidates returned. Safety block?");
+    }
     const rawText = data.candidates[0].content.parts[0].text;
     
     // Cleanup JSON markdown if present
@@ -56,7 +63,12 @@ router.post('/generate', upload.single('pdf'), async (req, res) => {
             return res.status(400).json({ error: "No PDF file provided" });
         }
 
+        // Explicitly load .env again to be sure (pointing to parent directory if needed)
+        require('dotenv').config({ path: require('path').resolve(__dirname, '../.env') }); 
+
         const apiKey = process.env.GEMINI_API_KEY;
+        console.log("DEBUG STUDIO: Checking for Key...", apiKey ? "Found" : "Missing");
+        
         if (!apiKey) {
             // Logic for "Mock Mode" if no key provided
             console.warn("GEMINI_API_KEY missing. Using Mock Response.");
@@ -86,7 +98,9 @@ router.post('/generate', upload.single('pdf'), async (req, res) => {
 
     } catch (error) {
         console.error("Studio Error:", error);
-        res.status(500).json({ error: "Failed to generate summary", details: error.message });
+        // Clean up the error message for the frontend
+        const message = error.message.replace(/"/g, "'");
+        res.status(500).json({ error: message });
     }
 });
 
