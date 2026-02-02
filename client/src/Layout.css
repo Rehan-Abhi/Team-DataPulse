@@ -97,3 +97,21 @@
   color: #333;
   overflow-y: auto;
 }
+
+@media (max-width: 768px) {
+  .sidebar {
+    position: absolute;
+    height: 100%;
+    z-index: 1000;
+    box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+  }
+
+  .sidebar.open ~ .sidebar-toggle {
+    left: 260px; /* Keep it consistent or adjust if needed */
+  }
+
+  .content {
+    width: 100%;
+    padding: 10px; /* Reduce padding on mobile */
+  }
+}

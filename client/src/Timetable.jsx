@@ -147,26 +147,26 @@ const Timetable = () => {
     const activeSlots = slots.filter(s => s.day === activeDay);
 
     return (
-        <div className="flex h-[calc(100vh-64px)] overflow-hidden bg-gray-50">
-            {/* Sidebar Tabs */}
-            <div className="w-48 bg-white border-r border-gray-200 flex flex-col">
-                <div className="p-4 border-b border-gray-100">
-                    <h2 className="text-lg font-bold text-gray-800">Days</h2>
+        <div className="flex flex-col md:flex-row h-[calc(100vh-64px)] overflow-hidden bg-gray-50">
+            {/* Sidebar Tabs (Horizontal Scroll on Mobile, Vertical Sidebar on Desktop) */}
+            <div className="w-full md:w-48 bg-white border-b md:border-b-0 md:border-r border-gray-200 flex flex-row md:flex-col overflow-x-auto md:overflow-visible shrink-0 no-scrollbar">
+                <div className="p-2 md:p-4 border-r md:border-r-0 md:border-b border-gray-100 flex items-center shrink-0 sticky left-0 bg-white z-10">
+                    <h2 className="text-sm md:text-lg font-bold text-gray-800">Days</h2>
                 </div>
-                <div className="flex-1 overflow-y-auto py-2">
+                <div className="flex flex-row md:flex-col flex-1 p-2 md:p-0 md:py-2 gap-2 md:gap-0">
                     {days.map(day => (
                         <button
                             key={day}
                             onClick={() => setActiveDay(day)}
-                            className={`w-full text-left px-5 py-3 text-sm font-medium transition-colors border-l-4 ${
+                            className={`whitespace-nowrap rounded-lg md:rounded-none px-4 md:px-5 py-2 md:py-3 text-sm font-medium transition-colors border-0 md:border-l-4 ${
                                 activeDay === day 
-                                ? 'border-blue-600 bg-blue-50 text-blue-700' 
-                                : 'border-transparent text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                                ? 'bg-blue-600 text-white md:bg-blue-50 md:text-blue-700 md:border-blue-600 shadow-md md:shadow-none' 
+                                : 'bg-gray-100 text-gray-600 md:bg-transparent md:border-transparent md:text-gray-600 hover:bg-gray-200 md:hover:bg-gray-50 md:hover:text-gray-900'
                             }`}
                         >
                             {day}
                             {/* Dot indicator if today */}
-                            {day === currentDayName && <span className="ml-2 inline-block w-2 h-2 bg-red-500 rounded-full" title="Today"></span>}
+                            {day === currentDayName && <span className={`ml-2 inline-block w-2 h-2 rounded-full ${activeDay === day ? 'bg-white md:bg-red-500' : 'bg-red-500'}`} title="Today"></span>}
                         </button>
                     ))}
                 </div>

@@ -3,7 +3,6 @@ const router = express.Router();
 const multer = require('multer');
 const path = require('path');
 const pdf = require('pdf-parse');
-console.log("DEBUG: pdf-parse import type:", typeof pdf, pdf); // Debug log
 const auth = require('../middleware/auth'); // Optional: verifyToken if we want protection
 
 // Multer setup (Memory storage for parsing)
@@ -67,7 +66,6 @@ router.post('/generate', upload.single('pdf'), async (req, res) => {
         require('dotenv').config({ path: require('path').resolve(__dirname, '../.env') }); 
 
         const apiKey = process.env.GEMINI_API_KEY;
-        console.log("DEBUG STUDIO: Checking for Key...", apiKey ? "Found" : "Missing");
         
         if (!apiKey) {
             // Logic for "Mock Mode" if no key provided

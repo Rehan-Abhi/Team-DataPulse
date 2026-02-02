@@ -12,17 +12,19 @@ function DashboardHome() {
     const [budgetStats, setBudgetStats] = useState({ totalSpent: 0, monthlyBudget: 0 });
     const [pendingTasks, setPendingTasks] = useState([]);
     const [focusStats, setFocusStats] = useState({ totalMinutes: 0, dailyFocusGoal: 0 });
+    const [friendsActivity, setFriendsActivity] = useState([]);
 
     useEffect(() => {
         const unsubscribe = auth.onAuthStateChanged(async (currentUser) => {
             if (currentUser) {
                 try {
-                    // Fetch Profile, Attendance, Timetable, Todos concurrently
-                    const [profileRes, attendanceRes, timetableRes, todosRes] = await Promise.allSettled([
+                    // Fetch Profile, Attendance, Timetable, Todos, Friends concurrently
+                    const [profileRes, attendanceRes, timetableRes, todosRes, friendsRes] = await Promise.allSettled([
                         api.get('/users/profile'),
                         api.get('/attendance'),
                         api.get('/timetable'),
-                        api.get('/todos')
+                        api.get('/todos'),
+                        api.get('/friends/mine')
                     ]);
 
                     // 1. Profile
@@ -95,6 +97,19 @@ function DashboardHome() {
                             });
                         }
                     } catch (e) { console.error("Focus fetch error", e); }
+
+                    // 6. Friends Activity
+                    if (friendsRes.status === 'fulfilled') {
+                        // Sort by online/active status status (Available > Busy > Offline)
+                        const friends = friendsRes.value.data;
+                        const sortedFriends = friends.sort((a, b) => {
+                            const stateOrder = { 'free': 0, 'busy': 1, 'offline': 2 };
+                            const stateA = a.liveStatus?.state || 'offline';
+                            const stateB = b.liveStatus?.state || 'offline';
+                            return stateOrder[stateA] - stateOrder[stateB];
+                        });
+                        setFriendsActivity(sortedFriends);
+                    }
 
 
                 } catch (error) {
@@ -298,6 +313,49 @@ function DashboardHome() {
                                 <Link to="/dashboard/focus" className="bg-blue-50 text-blue-600 px-4 py-2 rounded-lg text-sm font-bold hover:bg-blue-100 transition-colors">Set Goal</Link>
                             </div>
                         )}
+                    </div>
+                </div>
+
+
+                {/* 5. Friends Activity Widget (New) */}
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col h-full">
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-xl font-bold text-gray-800">Friends 👥</h3>
+                        <Link to="/dashboard/college" className="text-sm text-blue-600 hover:underline">View All</Link>
+                    </div>
+                    
+                    <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
+                         {friendsActivity.length > 0 ? (
+                            <div className="space-y-3">
+                                {friendsActivity.slice(0, 5).map(friend => (
+                                    <div key={friend._id} className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded-lg transition-colors">
+                                        <div className="relative">
+                                            <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden">
+                                                {friend.photoURL ? <img src={friend.photoURL} alt={friend.displayName} className="w-full h-full object-cover"/> : <span>👤</span>}
+                                            </div>
+                                            {/* Status Dot */}
+                                            <div className={`absolute bottom-0 right-0 w-3 h-3 border-2 border-white rounded-full ${friend.liveStatus?.state === 'busy' ? 'bg-red-500' : friend.liveStatus?.state === 'free' ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+                                        </div>
+                                        
+                                        <div className="flex-1 min-w-0">
+                                            <p className="font-semibold text-gray-800 text-sm truncate">{friend.displayName}</p>
+                                            <p className="text-xs text-gray-500 truncate">
+                                                {friend.liveStatus?.status || (friend.liveStatus?.state === 'free' ? 'Free' : 'Offline')}
+                                            </p>
+                                        </div>
+                                    </div>
+                                ))}
+                                {friendsActivity.length > 5 && (
+                                    <p className="text-xs text-center text-gray-400 mt-2">+{friendsActivity.length - 5} more</p>
+                                )}
+                            </div>
+                         ) : (
+                            <div className="h-full flex flex-col items-center justify-center text-gray-400 text-center">
+                                <span className="text-2xl mb-2">👋</span>
+                                <p className="text-sm">No friends active.</p>
+                                <Link to="/dashboard/college" className="text-blue-500 text-xs mt-1">Find Peers</Link>
+                            </div>
+                         )}
                     </div>
                 </div>
             </div>

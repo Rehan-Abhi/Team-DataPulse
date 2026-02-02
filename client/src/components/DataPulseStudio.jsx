@@ -111,7 +111,7 @@ export default function DataPulseStudio() {
         
         // Filter for US English voices
         const usVoices = voices.filter(v => v.lang === 'en-US');
-        const ukVoices = voices.filter(v => v.lang === 'en-GB');
+
 
 
         if (line.speaker === 'Host') {
